@@ -1,0 +1,3 @@
+/home/davide/CLionProjects/GPU-Computing-Deliverables/cmake-build-debug/CMakeFiles/GPU_Computing_Deliverables.dir
+/home/davide/CLionProjects/GPU-Computing-Deliverables/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/davide/CLionProjects/GPU-Computing-Deliverables/cmake-build-debug/CMakeFiles/rebuild_cache.dir
