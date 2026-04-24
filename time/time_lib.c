@@ -1,4 +1,4 @@
-#include "../include/my_time_lib.h"
+#include "time_lib.h"
 
 #include <math.h>
 

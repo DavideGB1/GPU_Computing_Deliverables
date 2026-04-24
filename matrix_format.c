@@ -1,17 +1,10 @@
+#include "matrix_format.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-typedef struct
-{
-    int *rows;
-    int *cols;
-    double *vals;
-    int nnz;
-    int n_col;
-    int n_row;
-} COO_Matrix;
 COO_Matrix* create_COO(int nnz, int n_row, int n_col)
 {
     COO_Matrix *coo = (COO_Matrix *)malloc(sizeof(COO_Matrix));
@@ -41,88 +34,79 @@ void free_COO(COO_Matrix *coo)
     free(coo);
 }
 
-typedef struct
-{
-    int *rows;
-    int *cols;
-    double *vals;
-    int nnz;
-    int n_col;
-    int n_row;
-} CSR_Matrix;
+typedef struct {
+    int row;
+    int col;
+    double val;
+} SparseElement;
+
+int compare_elements(const void *a, const void *b) {
+    const SparseElement *ea = (const SparseElement *)a;
+    const SparseElement *eb = (const SparseElement *)b;
+
+    // Ordina prima per riga
+    if (ea->row != eb->row) {
+        return ea->row - eb->row;
+    }
+    // A parità di riga, ordina per colonna
+    return ea->col - eb->col;
+}
 CSR_Matrix* create_CSR(COO_Matrix* coo)
 {
     CSR_Matrix *csr = (CSR_Matrix *)malloc(sizeof(CSR_Matrix));
     int *row = (int *)calloc((coo->n_row + 1), sizeof(int));
-    int *col = (int *)malloc(sizeof(int)*coo->nnz);
-    double *val = (double *)malloc(sizeof(double)*coo->nnz);
+    int *col = (int *)malloc(sizeof(int) * coo->nnz);
+    double *val = (double *)malloc(sizeof(double) * coo->nnz);
 
-    int tmp;
-    double tmp_val;
-    int do_swap = 0;
-    int n = coo->nnz;
-    for (int i = 0; i < n; i++)
-    {
-        for (int j = 0; j < n-i-1; j++)
-        {
-            do_swap = 0;
-            if (
-                    coo->rows[j]>coo->rows[j+1]
-                    ||
-                    (coo->rows[j] == coo->rows[j+1] && coo->cols[j]>coo->cols[j+1])
-                )
-            {
-                do_swap = 1;
-            }
-            if (do_swap)
-            {
-                tmp = coo->rows[j];
-                coo->rows[j] = coo->rows[j+1];
-                coo->rows[j+1] = tmp;
-
-                tmp = coo->cols[j];
-                coo->cols[j] = coo->cols[j+1];
-                coo->cols[j+1] = tmp;
-
-                tmp_val = coo->vals[j];
-                coo->vals[j] = coo->vals[j+1];
-                coo->vals[j+1] = tmp_val;
-            }
-        }
+    // 1. Raggruppiamo i dati in un array temporaneo di struct
+    SparseElement *elems = (SparseElement *)malloc(sizeof(SparseElement) * coo->nnz);
+    for (int i = 0; i < coo->nnz; i++) {
+        elems[i].row = coo->rows[i];
+        elems[i].col = coo->cols[i];
+        elems[i].val = coo->vals[i];
     }
-    for (int i = 0; i < coo->nnz; i++)
-    {
-        val[i] = coo->vals[i];
-        col[i] = coo->cols[i];
-        row[coo->rows[i] + 1]++;
+
+    // 2. Usiamo il qsort nativo (velocissimo: O(N log N))
+    qsort(elems, coo->nnz, sizeof(SparseElement), compare_elements);
+
+    // 3. Costruiamo gli array CSR a partire dai dati ordinati
+    for (int i = 0; i < coo->nnz; i++) {
+        col[i] = elems[i].col;
+        val[i] = elems[i].val;
+        row[elems[i].row + 1]++;
     }
+
+    // Accumulo per i row pointers
     row[0] = 0;
-    for (int i = 0; i < coo->n_row; i++)
-    {
+    for (int i = 0; i < coo->n_row; i++) {
         row[i+1] += row[i];
     }
+
+    // 4. Pulizia
+    free(elems);
+
     csr->n_row = coo->n_row;
     csr->n_col = coo->n_col;
     csr->nnz = coo->nnz;
-    csr->rows= row;
-    csr->cols = col;
-    csr->vals = val;
+    csr->row_ptr = row;
+    csr->col_ind = col;
+    csr->values = val;
 
     return csr;
 }
 void print_CSR(CSR_Matrix *csr)
 {
     for (int i = 0; i < csr->n_row; ++i) {
-        for (int j = csr->rows[i]; j < csr->rows[i+1]; ++j) {
-            printf("Row: %d Col: %d Val: %f\n", i, csr->cols[j], csr->vals[j]);
+        for (int j = csr->row_ptr[i]; j < csr->row_ptr[i+1]; ++j) {
+            printf("Row: %d Col: %d Val: %f\n", i, csr->col_ind[j], csr->values[j]);
         }
     }
 }
 void free_CSR(CSR_Matrix *csr)
 {
-    free(csr->rows);
-    free(csr->cols);
-    free(csr->vals);
+    free(csr->row_ptr);
+    free(csr->col_ind);
+    free(csr->values);
     free(csr);
 }
 COO_Matrix* mm_parser(FILE *file)
