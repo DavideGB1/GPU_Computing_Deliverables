@@ -4,7 +4,12 @@
 #include <stdlib.h>
 #include <time.h>
 #include <omp.h>
-void * my_SpMV(CSR_Matrix *csr, double *vector, double *res)
+#include <dirent.h>
+
+#define WARMUP 2
+#define NITER 10
+
+void my_SpMV(CSR_Matrix *csr, double *vector, double *res)
 {
     #pragma omp parallel for
     for(int i = 0; i<csr->n_row; i++) {
@@ -17,41 +22,68 @@ void * my_SpMV(CSR_Matrix *csr, double *vector, double *res)
 }
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        fprintf(stderr, "Use: %s <file.mtx>\n", argv[0]);
+        fprintf(stderr, "Use: %s matrix_folder_path\n", argv[0]);
         return 1;
     }
 
     srand(time(NULL));
+    struct dirent *entry;
+    DIR *dp = opendir(argv[1]);
 
-    FILE *f = fopen(argv[1], "r");
-    if (f == NULL) {
-        perror("Error: file not found");
+    if (dp == NULL) {
+        perror("Error: folder not found");
         return 1;
     }
 
-    COO_Matrix *coo = mm_parser(f);
-    fclose(f);
+    while ((entry = readdir(dp)) != NULL) {
+        if (entry->d_name[0] == '.') continue
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/%s", argv[1], entry->d_name);
+        FILE *f = fopen(path, "r");
+        if (f == NULL) {
+            perror("Error: file not found");
+            return 1;
+        }
 
-    CSR_Matrix *csr = create_CSR(coo);
-    free_COO(coo);
+        COO_Matrix *coo = mm_parser(f);
+        fclose(f);
 
-    double *vector = (double * )malloc(csr->n_col*sizeof(double));
-    printf("Random Vector:\n");
-    for (int i = 0; i < csr->n_col; i++)
-    {
-        vector[i] = (double)rand()/1000000.0;
-        printf("%f, ",vector[i]);
+        CSR_Matrix *csr = create_CSR(coo);
+        free_COO(coo);
+
+        double *vector = (double * )malloc(csr->n_col*sizeof(double));
+        printf("Random Vector:\n");
+        for (int i = 0; i < csr->n_col; i++)
+        {
+            vector[i] = (double)rand()/1000000.0;
+            printf("%f, ",vector[i]);
+        }
+        printf("\nResult Vector:\n");
+        double *res = (double *)calloc(csr->n_row, sizeof(double));
+        double timers[NITER];
+        for (int i=-WARMUP; i<NITER; i++) {
+
+            TIMER_START(0);
+            my_SpMV(csr,vector,res);
+            TIMER_STOP(0);
+
+            double iter_time = TIMER_ELAPSED(0) / 1.e6;
+            if( i >= 0) timers[i] = iter_time;
+
+            printf("Iteration %d tooks %lfs\n", i, iter_time);
+        }
+        for (int i = 0; i < csr->n_row; i++)
+        {
+            printf("%f, ",res[i]);
+        }
+        printf("\n");
+        free(res);
+        free(vector);
+        free_CSR(csr);
     }
-    printf("\nResult Vector:\n");
-    double *res = (double *)calloc(csr->n_row, sizeof(double));
-     my_SpMV(csr,vector,res);
-    for (int i = 0; i < csr->n_row; i++)
-    {
-        printf("%f, ",res[i]);
-    }
-    printf("\n");
-    free(res);
-    free(vector);
-    free_CSR(csr);
+
+    closedir(dp);
+
+
     return 0;
 }
