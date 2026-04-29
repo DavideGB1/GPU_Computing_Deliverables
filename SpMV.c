@@ -8,6 +8,44 @@
 
 #define WARMUP 2
 #define NITER 10
+#define WARP_SIZE 32
+#define THREADS_PER_BLOCK 256
+
+__global__ void SpMV_CSR_Scalar(CSR_Matrix *csr, double *vector, double *res){
+    //Use grid of size n_row*1
+    int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (thread_id < csr->n_row) {
+        double sum = 0;
+        for(int j = csr->row_ptr[thread_id]; j<csr->row_ptr[thread_id+1]; j++) {
+            sum += csr->values[j]*vector[csr->col_ind[j]];
+        }
+        res[i] = sum;
+    }
+}
+
+__global__ void SpMV_CSR_Vector(CSR_Matrix *csr, double *vector, double *res){
+    //Use grid of size tbd
+    int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+    int warp_id = thread_id/32;
+    int lane_id = thread_id%32;
+    thread_id = threadIdx.x;
+    __shared__ double sum[THREADS_PER_BLOCK];
+    sum[thread_id] = 0;
+    if (warp_id < csr->n_row){
+        for(int j = csr->row_ptr[warp_id]+lane_id; j<csr->row_ptr[warp_id+1]; j+=WARP_SIZE) {
+            sum[thread_id] += csr->values[j]*vector[csr->col_ind[j]];
+        }
+    }
+     __syncthreads();
+    if (lane_id <16){ sum[thread_id] += sum[thread_id+16]; }
+    if (lane_id <8){ sum[thread_id] += sum[thread_id+8]; }
+    if (lane_id <4){ sum[thread_id] += sum[thread_id+4]; }
+    if (lane_id <2){ sum[thread_id] += sum[thread_id+2]; }
+    if (lane_id ==0){
+        sum[thread_id] += sum[thread_id+1];
+        res[warp_id] = sum[thread_id];
+    }
+}
 
 void my_SpMV(CSR_Matrix *csr, double *vector, double *res)
 {
@@ -87,3 +125,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
