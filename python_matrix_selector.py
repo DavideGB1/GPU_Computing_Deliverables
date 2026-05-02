@@ -65,7 +65,7 @@ def monte_carlo_analysis(matrix_list, target=100_000_000):
 
     print(f"\n--- Search on {actual_test_cases:,} groups ---")
 
-    global_best_score = -1.0
+    global_best_score =c -1.0
     global_best = None
 
     for cycle in tqdm(range(num_cycles), desc="Processing chunks", unit="chunk(5M)"):
@@ -105,23 +105,44 @@ def monte_carlo_analysis(matrix_list, target=100_000_000):
 
     return global_best, actual_test_cases
 
+def print_individual_stats(matrix_list):
+
+    print("\n--- Matrix Stats ---")
+    table_data = []
+    
+    headers = [
+        "Matrix Name", 
+        "Size (N)", 
+        "NNZ", 
+        "Avg NNZ/Row", 
+        "Row Var", 
+        "Regularity (CV)"
+    ]
+
+    for nome in tqdm(matrix_list, desc="Analysis", unit="mat"):
+        feat = read_matrix(nome)
+        if feat:
+            table_data.append([
+                nome,
+                feat[0],              # Size
+                feat[1],              # NNZ
+                f"{feat[2]:.2f}",     # Avg NNZ/Row
+                f"{feat[3]:.2f}",     # Row Var
+                f"{feat[4]:.4f}"      # Regularity
+            ])
+        else:
+            table_data.append([nome, "N/A", "N/A", "N/A", "N/A", "N/A"])
+
+    print("\n" + tabulate(table_data, headers=headers, tablefmt="grid"))
 
 if __name__ == "__main__":
     input_list = [
-        "BenElechi1", "CoupCons3D", "CurlCurl_4", "Emilia_923", "F1",
-        "Fault_639", "FullChip", "GAP-road", "Geo_1438", "Hardesty3",
-        "Hook_1498", "Long_Coup_dt6", "ML_Laplace", "PFlow_742", "RM07R",
-        "Serena", "Si87H76", "Transport", "af_5_k101", "af_shell5",
-        "audikw_1", "bmwcra_1", "boneS10", "coPapersCiteseer", "crankseg_2",
-        "gsm_106857", "halfb", "inline_1", "ljournal-2008", "msdoor",
-        "nd24k", "nlpkkt80", "pkustk14", "rgg_n_2_21_s0", "spal_004",
-        "vas_stokes_2M", "Ge87H76", "Maragal_8", "Raj1",
-        "TSOPF_RS_b678_c2", "gearbox", "m_t1", "ship_003", "shipsec5",
-        "thermomech_dM", "x104", "Bump_2911", "Cube_Coup_dt6", "Flan_1565",
-        "HV15R", "ML_Geer", "Queen_4147", "hollywood-2009", "kmer_U1a"
+        "kmer_U1a", "af_5_k101","af_shell5","BenElechi1","ML_Laplace",
+        "Queen_4147", "Raj1", "shipsec5", "spal_004", "thermomech_dM"
     ]
+    print_individual_stats(input_list)
 
-    try:
+    """try:
         best, n_comb = monte_carlo_analysis(input_list, target=100_000_000)
         print(f"Analyzed {n_comb} combinations")
         print(f"Best Combination: {', '.join(best['group'])}")
@@ -148,6 +169,6 @@ if __name__ == "__main__":
         print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error: {e}")"""
 
 #Best: kmer_U1a, af_shell5, shipsec5, BenElechi1, Raj1, Queen_4147, spal_004, af_5_k101, ML_Laplace, thermomech_dM

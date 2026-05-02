@@ -11,6 +11,14 @@
 #define WARP_SIZE 32
 #define THREADS_PER_BLOCK 256
 
+__global__ void SpMV_COO(COO_Matrix *coo, double *vector, double *res) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < coo->nnz) {
+        float partial_prod = coo->val[i] * vector[coo->col[i]];
+        atomicAdd(&res[coo->row[i]], partial_prod);
+    }
+}
+
 __global__ void SpMV_CSR_Scalar(CSR_Matrix *csr, double *vector, double *res){
     //Use grid of size n_row*1
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
