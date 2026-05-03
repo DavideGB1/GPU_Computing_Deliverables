@@ -210,7 +210,7 @@ int main(int argc, char *argv[]) {
     cudaFree(d_row); cudaFree(d_col); cudaFree(d_val); cudaFree(d_vec); cudaFree(d_res);
     //CSR
     printf("CSR-Scalar SpMV\n");
-    int *d_row_ptr, *d_col_ind; double *d_values, *d_vec, *d_res;
+    int *d_row_ptr, *d_col_ind; double *d_values;
     cudaMalloc(&d_row_ptr, (csr->n_row + 1) * sizeof(int));
     cudaMalloc(&d_col_ind,  csr->nnz        * sizeof(int));
     cudaMalloc(&d_values,   csr->nnz        * sizeof(double));

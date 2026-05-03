@@ -10,8 +10,8 @@
 #SBATCH --time=00:05:00
 
 #SBATCH --job-name=test
-#SBATCH --output=test-%j.out
-#SBATCH --error=test-%j.err
+#SBATCH --output=logs/test-%j.out
+#SBATCH --error=logs/test-%j.err
 
 module load CUDA/12.5.0
 module load GCC/13.3.0
