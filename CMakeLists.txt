@@ -15,10 +15,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-add_executable(spmv spmv.cu matrix_format.c ./time/time_lib.c)
+add_executable(SpMV SpMV.cu matrix_format.c ./time/time_lib.c)
 find_package(CUDAToolkit REQUIRED)
 
-target_link_libraries(spmv
+target_link_libraries(SpMV
         PRIVATE
         m
         CUDA::cusparse
