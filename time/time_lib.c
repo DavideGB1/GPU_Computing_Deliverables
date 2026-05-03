@@ -64,10 +64,10 @@ void print_stats(const char *label, double *timers, double *errors,int nnz, int 
     double gflops = (2.0 * nnz) / (avg * 1e6);
     double bandwidth = (double)bytes / (avg * 1e6);
     double avg_err = arithmetic_mean(errors, NITER);
-    printf("[%s]  avg=%.6fms  stddev=%.6fms  GFLOP/s=%.2f  BW=%.2f GB/s  Avg_err=%.2f\n",
+    printf("[%s]  avg=%.6fms  stddev=%.6fms  GFLOP/s=%.2f  BW=%.2f GB/s  Avg_err=%.2e\n",
            label, avg, stddev, gflops, bandwidth, avg_err);
 
-    fprintf(csv, "%s,%s,%.6f,%.6f,%.6f,%.6f,%.4f,%.4f,%.4f\n",
+    fprintf(csv, "%s,%s,%.6f,%.6f,%.6f,%.6f,%.4f,%.4f,%.2e\n",
             matrix_name, label, avg, stddev, mn, mx, gflops, bandwidth,avg_err);
 }
 double geometric_mean(double array[],int len){
