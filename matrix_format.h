@@ -27,6 +27,8 @@ COO_Matrix* create_COO(int nnz, int n_row, int n_col);
 
 void free_COO(COO_Matrix *coo);
 
+void sort_COO(COO_Matrix *coo);
+
 void print_COO(COO_Matrix *coo);
 
 CSR_Matrix* create_CSR(COO_Matrix* coo);
