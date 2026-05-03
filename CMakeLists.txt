@@ -15,15 +15,15 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 add_executable(SpMV SpMV.cu matrix_format.c ./time/time_lib.c)
 
 find_package(CUDAToolkit REQUIRED)
-find_package(OpenMP REQUIRED)
 
 target_link_libraries(SpMV
         PRIVATE
         m
         CUDA::cusparse
-        OpenMP::OpenMP_C
+        /lib64/libgomp.so.1
 )
 
 target_compile_options(SpMV PRIVATE
+        $<$<COMPILE_LANGUAGE:C>:-fopenmp>
         $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler -fopenmp>
 )
