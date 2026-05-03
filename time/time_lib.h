@@ -2,7 +2,9 @@
 #define LAB3_EX1_LIB
 #include <stdio.h>
 #include <sys/time.h>
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 #define STR(s) #s
 #define XSTR(s) STR(s)
 
