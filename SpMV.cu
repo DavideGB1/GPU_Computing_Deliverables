@@ -1,4 +1,4 @@
-
+#include <cusparse.h>
 #include "matrix_format.h"
 #include <stdio.h>
 #include <stdlib.h>
