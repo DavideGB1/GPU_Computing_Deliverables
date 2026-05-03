@@ -1,6 +1,6 @@
 #ifndef LAB3_EX1_LIB
 #define LAB3_EX1_LIB
-
+#include <stdio.h>
 #include <sys/time.h>
 
 #define STR(s) #s

@@ -1,5 +1,5 @@
 #include "time_lib.h"
-
+#include <stdio.h>
 #include <math.h>
 
 // Put here the implementation of arithmetic_mean and geometric_mean
