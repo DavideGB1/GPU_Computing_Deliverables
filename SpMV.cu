@@ -57,7 +57,6 @@ __global__ void SpMV_CSR_Vector(
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
     int warp_id = thread_id/32;
     int lane_id = thread_id%32;
-    thread_id = threadIdx.x;
     __shared__ double sum[THREADS_PER_BLOCK];
     sum[thread_id] = 0;
     if (warp_id < n_row){
@@ -67,13 +66,13 @@ __global__ void SpMV_CSR_Vector(
     }
      __syncthreads();
     if (lane_id <16){ sum[thread_id] += sum[thread_id+16]; }
-    __syncwarp()
+    __syncwarp();
     if (lane_id <8){ sum[thread_id] += sum[thread_id+8]; }
-    __syncwarp()
+    __syncwarp();
     if (lane_id <4){ sum[thread_id] += sum[thread_id+4]; }
-    __syncwarp()
+    __syncwarp();
     if (lane_id <2){ sum[thread_id] += sum[thread_id+2]; }
-    __syncwarp()
+    __syncwarp();
     if (lane_id ==0){
         sum[thread_id] += sum[thread_id+1];
         res[warp_id] = sum[thread_id];
@@ -117,13 +116,13 @@ int main(int argc, char *argv[]) {
     TIMER_START(0);
     COO_Matrix *coo = mm_parser(f);
     TIMER_STOP(0);
-    printf("Matrix reading time: %lfs\n", TIME_ELAPSED(0)/1.e6);
+    printf("Matrix reading time: %lfs\n", TIMER_ELAPSED(0)/1.e6);
     fclose(f);
 
     TIMER_START(0);
     CSR_Matrix *csr = create_CSR(coo);
     TIMER_STOP(0);
-    printf("CSR Creation Time: %lfs\n", TIME_ELAPSED(0)/1.e6);
+    printf("CSR Creation Time: %lfs\n", TIMER_ELAPSED(0)/1.e6);
 
     TIMER_START(0);
     double *vector = (double *)malloc(csr->n_col * sizeof(double));
@@ -131,7 +130,7 @@ int main(int argc, char *argv[]) {
 		vector[i] = (double)rand() / 1.e3;
 	}
     TIMER_STOP(0);
-    printf("Vector Generation Time: %lfs\n", TIME_ELAPSED(0)/1.e6);
+    printf("Vector Generation Time: %lfs\n", TIMER_ELAPSED(0)/1.e6);
 
     double *res = (double *)calloc(csr->n_row, sizeof(double));
     double timers[NITER];
@@ -183,8 +182,7 @@ int main(int argc, char *argv[]) {
     TIMER_START(0);
     sort_COO(coo);
     TIMER_STOP(0);
-    printf("COO sorting time: %lfs\n", TIME_ELAPSED(0)/1.e6);
-    int *d_row, *d_col; double *d_val, *d_vec, *d_res;
+    printf("COO sorting time: %lfs\n", TIMER_ELAPSED(0)/1.e6);
     cudaMalloc(&d_row, coo->nnz   * sizeof(int));
     cudaMalloc(&d_col, coo->nnz   * sizeof(int));
     cudaMalloc(&d_val, coo->nnz   * sizeof(double));
@@ -194,7 +192,7 @@ int main(int argc, char *argv[]) {
     cudaMemcpy(d_col, coo->cols, coo->nnz   * sizeof(int),    cudaMemcpyHostToDevice);
     cudaMemcpy(d_val, coo->vals, coo->nnz   * sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_vec, vector,    coo->n_col * sizeof(double), cudaMemcpyHostToDevice);
-    int blocks = (coo->nnz + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    blocks = (coo->nnz + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
     for (int i=-WARMUP; i<NITER; i++) {
         cudaMemset(d_res, 0, coo->n_row * sizeof(double));
@@ -212,7 +210,6 @@ int main(int argc, char *argv[]) {
     cudaFree(d_row); cudaFree(d_col); cudaFree(d_val); cudaFree(d_vec); cudaFree(d_res);
     //CSR
     printf("CSR-Scalar SpMV\n");
-    int *d_row_ptr, *d_col_ind; double *d_values, *d_vec, *d_res;
     cudaMalloc(&d_row_ptr, (csr->n_row + 1) * sizeof(int));
     cudaMalloc(&d_col_ind,  csr->nnz        * sizeof(int));
     cudaMalloc(&d_values,   csr->nnz        * sizeof(double));
@@ -222,7 +219,7 @@ int main(int argc, char *argv[]) {
     cudaMemcpy(d_col_ind, csr->col_ind,  csr->nnz        * sizeof(int),    cudaMemcpyHostToDevice);
     cudaMemcpy(d_values,  csr->values,   csr->nnz        * sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_vec,     vector,        csr->n_col      * sizeof(double), cudaMemcpyHostToDevice);
-    int blocks = (csr->n_row + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    blocks = (csr->n_row + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
     for (int i = -WARMUP; i < NITER; i++) {
         cudaMemset(d_res, 0, csr->n_row * sizeof(double));
         TIMER_START(0);
@@ -236,7 +233,6 @@ int main(int argc, char *argv[]) {
     cudaFree(d_row_ptr); cudaFree(d_col_ind); cudaFree(d_values); cudaFree(d_vec); cudaFree(d_res);
     // CSR-Warp
     printf("CSR-Vector SpMV\n");
-    int *d_row_ptr, *d_col_ind; double *d_values, *d_vec, *d_res;
     cudaMalloc(&d_row_ptr, (csr->n_row + 1) * sizeof(int));
     cudaMalloc(&d_col_ind,  csr->nnz        * sizeof(int));
     cudaMalloc(&d_values,   csr->nnz        * sizeof(double));
@@ -246,7 +242,7 @@ int main(int argc, char *argv[]) {
     cudaMemcpy(d_col_ind, csr->col_ind,  csr->nnz        * sizeof(int),    cudaMemcpyHostToDevice);
     cudaMemcpy(d_values,  csr->values,   csr->nnz        * sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_vec,     vector,        csr->n_col      * sizeof(double), cudaMemcpyHostToDevice);
-    int blocks = (csr->n_row * WARP_SIZE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    blocks = (csr->n_row * WARP_SIZE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
     for (int i = -WARMUP; i < NITER; i++) {
         cudaMemset(d_res, 0, csr->n_row * sizeof(double));
         TIMER_START(0);
