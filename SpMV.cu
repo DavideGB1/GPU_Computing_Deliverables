@@ -74,7 +74,7 @@ __global__ void SpMV_CSR_Vector(
     __syncwarp();
     if (lane_id <2){ sum[thread_id] += sum[thread_id+2]; }
     __syncwarp();
-    if (lane_id ==0){
+    if (lane_id ==0 && warp_id < n_row){
         sum[thread_id] += sum[thread_id+1];
         res[warp_id] = sum[thread_id];
     }
@@ -90,9 +90,7 @@ void my_SpMV(CSR_Matrix *csr, double *vector, double *res) {
         res[i] = sum;
     }
 }
-void print_stats(const char *label, double *timers) {
 
-}
 
 //COO
 //COO-Sorted
@@ -113,6 +111,11 @@ int main(int argc, char *argv[]) {
 		perror("Error: file not found\n");
 		return 1;
 	}
+    FILE *stats_file = fopen("stats.csv", "a");
+    if (stats_file == NULL) {
+        perror("Error: stats file not found\n");
+        return 1;
+    }
 
     TIMER_START(0);
     COO_Matrix *coo = mm_parser(f);
@@ -133,15 +136,16 @@ int main(int argc, char *argv[]) {
     TIMER_STOP(0);
     printf("Vector Generation Time: %lfs\n", TIMER_ELAPSED(0)/1.e6);
 
-    double *res = (double *)calloc(csr->n_row, sizeof(double));
+    double *cpu_res = (double *)calloc(csr->n_row, sizeof(double));
     double timers[NITER];
+    double errors[NITER];
 
     printf("Matrix: %s  rows=%d  cols=%d  nnz=%d\n\n", argv[1], csr->n_row, csr->n_col, csr->nnz);
     //CPU
     printf("CPU SpMV\n");
     for (int i=-WARMUP; i<NITER; i++) {
         TIMER_START(0);
-        my_SpMV(csr,vector,res);
+        my_SpMV(csr,vector,cpu_res);
         TIMER_STOP(0);
 
         double iter_time = TIMER_ELAPSED(0) / 1.e6;
@@ -153,6 +157,7 @@ int main(int argc, char *argv[]) {
     //COO
     printf("COO SpMV\n");
     int *d_row, *d_col; double *d_val, *d_vec, *d_res;
+    double *h_res = (double*)malloc(coo->n_row * sizeof(double));
     cudaMalloc(&d_row, coo->nnz   * sizeof(int));
     cudaMalloc(&d_col, coo->nnz   * sizeof(int));
     cudaMalloc(&d_val, coo->nnz   * sizeof(double));
@@ -172,18 +177,23 @@ int main(int argc, char *argv[]) {
         cudaDeviceSynchronize();
         TIMER_STOP(0);
 
-        double iter_time = TIMER_ELAPSED(0) / 1.e6;
+        double iter_time = TIMER_ELAPSED(0) / 1.e3;
+        cudaMemcpy(h_res, d_res, coo->n_row * sizeof(double), cudaMemcpyDeviceToHost);
         if( i >= 0) timers[i] = iter_time;
-
-        printf("Iteration %d tooks %lfs\n", i, iter_time);
+        if(i >= 0){
+            double error = relative_error(cpu_res,h_res, csr->n_row);
+            errors[i] = error;
+        }
+        printf("Iteration %d tooks %lfms\n", i, iter_time);
     }
+    print_stats("COO", timers, errors, coo->nnz, coo->n_row, argv[1], stats_file, FORMAT_COO, NITER);
     cudaFree(d_row); cudaFree(d_col); cudaFree(d_val); cudaFree(d_vec); cudaFree(d_res);
     //Sort COO
     printf("Sorted COO SpMV\n");
     TIMER_START(0);
     sort_COO(coo);
     TIMER_STOP(0);
-    printf("COO sorting time: %lfs\n", TIMER_ELAPSED(0)/1.e6);
+    printf("COO sorting time: %lfms\n", TIMER_ELAPSED(0)/1.e3);
     cudaMalloc(&d_row, coo->nnz   * sizeof(int));
     cudaMalloc(&d_col, coo->nnz   * sizeof(int));
     cudaMalloc(&d_val, coo->nnz   * sizeof(double));
@@ -203,12 +213,17 @@ int main(int argc, char *argv[]) {
         cudaDeviceSynchronize();
         TIMER_STOP(0);
 
-        double iter_time = TIMER_ELAPSED(0) / 1.e6;
+        double iter_time = TIMER_ELAPSED(0) / 1.e3;
+        cudaMemcpy(h_res, d_res, coo->n_row * sizeof(double), cudaMemcpyDeviceToHost);
         if( i >= 0) timers[i] = iter_time;
-
-        printf("Iteration %d tooks %lfs\n", i, iter_time);
+        if(i >= 0){
+            double error = relative_error(cpu_res,h_res, csr->n_row);
+            errors[i] = error;
+        }
+        printf("Iteration %d tooks %lfms\n", i, iter_time);
     }
     cudaFree(d_row); cudaFree(d_col); cudaFree(d_val); cudaFree(d_vec); cudaFree(d_res);
+    print_stats("COO-Sorted", timers, errors, coo->nnz, coo->n_row, argv[1], stats_file, FORMAT_COO, NITER);
     //CSR
     printf("CSR-Scalar SpMV\n");
     int *d_row_ptr, *d_col_ind; double *d_values;
@@ -228,11 +243,18 @@ int main(int argc, char *argv[]) {
         SpMV_CSR_Scalar<<<blocks, THREADS_PER_BLOCK>>>(csr->n_row, d_row_ptr, d_col_ind, d_values, d_vec, d_res);
         cudaDeviceSynchronize();
         TIMER_STOP(0);
-        double iter_time = TIMER_ELAPSED(0) / 1.e6;
+
+        double iter_time = TIMER_ELAPSED(0) / 1.e3;
+        cudaMemcpy(h_res, d_res, csr->n_row * sizeof(double), cudaMemcpyDeviceToHost);
         if( i >= 0) timers[i] = iter_time;
-        printf("Iteration %d tooks %lfs\n", i, iter_time);
+        if(i >= 0){
+            double error = relative_error(cpu_res,h_res, csr->n_row);
+            errors[i] = error;
+        }
+        printf("Iteration %d tooks %lfms\n", i, iter_time);
     }
     cudaFree(d_row_ptr); cudaFree(d_col_ind); cudaFree(d_values); cudaFree(d_vec); cudaFree(d_res);
+    print_stats("CSR-Scalar", timers, errors, csr->nnz, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER);
     // CSR-Warp
     printf("CSR-Vector SpMV\n");
     cudaMalloc(&d_row_ptr, (csr->n_row + 1) * sizeof(int));
@@ -251,16 +273,82 @@ int main(int argc, char *argv[]) {
         SpMV_CSR_Vector<<<blocks, THREADS_PER_BLOCK>>>(csr->n_row, d_row_ptr, d_col_ind, d_values, d_vec, d_res);
         cudaDeviceSynchronize();
         TIMER_STOP(0);
-        double iter_time = TIMER_ELAPSED(0) / 1.e6;
-        if( i >= 0) timers[i] = iter_time;
-        printf("Iteration %d tooks %lfs\n", i, iter_time);
 
+        double iter_time = TIMER_ELAPSED(0) / 1.e3;
+        cudaMemcpy(h_res, d_res, csr->n_row * sizeof(double), cudaMemcpyDeviceToHost);
+        if( i >= 0) timers[i] = iter_time;
+        if(i >= 0){
+            double error = relative_error(cpu_res,h_res, csr->n_row);
+            errors[i] = error;
+        }
+        printf("Iteration %d tooks %lfms\n", i, iter_time);
     }
     cudaFree(d_row_ptr); cudaFree(d_col_ind); cudaFree(d_values); cudaFree(d_vec); cudaFree(d_res);
-    free(res);
+    print_stats("CSR-Warp", timers, errors, csr->nnz, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER);
+
+    printf("cuSPARSE SpMV\n");
+
+    cusparseHandle_t handle;
+    cusparseCreate(&handle);
+    double alpha = 1.0;
+    double beta  = 0.0;
+
+    //Vector Def
+    cusparseDnVecDescr_t vecX, vecY;
+    cusparseCreateDnVec(&vecX, csr->n_col, d_vec, CUDA_R_64F);
+    cusparseCreateDnVec(&vecY, csr->n_row, d_res, CUDA_R_64F);
+    //Matrix Def
+    cusparseSpMatDescr_t matA;
+        cusparseCreateCsr(&matA, csr->n_row, csr->n_col, csr->nnz,
+                      d_row_ptr, d_col_ind, d_values,
+                      CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
+                      CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
+
+
+    //External Buffer
+    size_t bufferSize = 0;
+    void* d_buffer = NULL;
+
+    cusparseSpMV_bufferSize(
+        handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
+        &alpha, matA, vecX, &beta, vecY, CUDA_R_64F,
+        CUSPARSE_SPMV_ALG_DEFAULT, &bufferSize);
+
+    cudaMalloc(&d_buffer, bufferSize);
+
+
+    for (int i = -WARMUP; i < NITER; i++) {
+        cudaMemset(d_res, 0, csr->n_row * sizeof(double));
+
+        TIMER_START(0);
+        cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                     &alpha, matA, vecX, &beta, vecY, CUDA_R_64F,
+                     CUSPARSE_SPMV_ALG_DEFAULT, d_buffer);
+        cudaDeviceSynchronize();
+        TIMER_STOP(0);
+
+        double iter_time = TIMER_ELAPSED(0) / 1.e3;
+        if (i >= 0) {
+            timers[i] = iter_time;
+            cudaMemcpy(h_res, d_res, csr->n_row * sizeof(double), cudaMemcpyDeviceToHost);
+            errors[i] = relative_error(cpu_res, h_res, csr->n_row);
+        }
+        printf("Iteration %d took %lfms\n", i, iter_time);
+    }
+        cudaFree(d_buffer);
+    cusparseDestroySpMat(matA);
+    cusparseDestroyDnVec(vecX);
+    cusparseDestroyDnVec(vecY);
+    cusparseDestroy(handle);
+
+    print_stats("cuSPARSE", timers, errors, csr->nnz, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER);
+
+    free(cpu_res);
     free(vector);
+    free(h_res);
     free_CSR(csr);
     free_COO(coo);
+    fclose(stats_file);
     return 0;
 }
 
