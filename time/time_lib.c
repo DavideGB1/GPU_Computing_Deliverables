@@ -3,7 +3,6 @@
 #include <math.h>
 
 // Put here the implementation of arithmetic_mean and geometric_mean
-typedef enum { FORMAT_COO, FORMAT_CSR, FORMAT_ELL } SpMVFormat;
 double arithmetic_mean(double array[],int len){
     double res = 0.0;
     for(int i=0;i<len;i++){
