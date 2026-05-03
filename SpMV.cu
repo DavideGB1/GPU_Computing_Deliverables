@@ -57,6 +57,7 @@ __global__ void SpMV_CSR_Vector(
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
     int warp_id = thread_id/32;
     int lane_id = thread_id%32;
+    thread_id  = threadIdx.x;
     __shared__ double sum[THREADS_PER_BLOCK];
     sum[thread_id] = 0;
     if (warp_id < n_row){
