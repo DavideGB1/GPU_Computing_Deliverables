@@ -51,6 +51,36 @@ int compare_elements(const void *a, const void *b) {
     // A parità di riga, ordina per colonna
     return ea->col - eb->col;
 }
+void sort_COO(COO_Matrix *coo) {
+    if (coo == NULL || coo->nnz <= 1) return;
+
+    // 1. Alloca un array temporaneo di struct per facilitare l'ordinamento
+    SparseElement *elems = (SparseElement *)malloc(sizeof(SparseElement) * coo->nnz);
+    if (elems == NULL) {
+        fprintf(stderr, "Errore di allocazione memoria in sort_COO\n");
+        return;
+    }
+
+    // 2. Copia i dati dagli array paralleli alla struct
+    for (int i = 0; i < coo->nnz; i++) {
+        elems[i].row = coo->rows[i];
+        elems[i].col = coo->cols[i];
+        elems[i].val = coo->vals[i];
+    }
+
+    // 3. Ordina l'array usando qsort e la tua funzione di comparazione esistente
+    qsort(elems, coo->nnz, sizeof(SparseElement), compare_elements);
+
+    // 4. Ricopia i dati ordinati negli array originali della matrice COO
+    for (int i = 0; i < coo->nnz; i++) {
+        coo->rows[i] = elems[i].row;
+        coo->cols[i] = elems[i].col;
+        coo->vals[i] = elems[i].val;
+    }
+
+    // 5. Libera la memoria temporanea
+    free(elems);
+}
 CSR_Matrix* create_CSR(COO_Matrix* coo)
 {
     CSR_Matrix *csr = (CSR_Matrix *)malloc(sizeof(CSR_Matrix));
