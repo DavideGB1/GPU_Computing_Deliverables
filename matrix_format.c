@@ -118,9 +118,9 @@ CSR_Matrix* create_CSR(COO_Matrix* coo)
     csr->n_row = coo->n_row;
     csr->n_col = coo->n_col;
     csr->nnz = coo->nnz;
-    csr->row_ptr = row;
-    csr->col_ind = col;
-    csr->values = val;
+    csr->row_ptr = row_ptr;
+    csr->col_ind = col_ind;
+    csr->values = values;
 
     return csr;
 }
