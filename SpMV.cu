@@ -294,7 +294,8 @@ int main(int argc, char *argv[]) {
 
     // CSR-Vector
     printf("CSR-Vector SpMV\n");
-	long long blocks_needed = (csr->n_row * WARP_SIZE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+	long long total_threads_needed = (long long)csr->n_row * WARP_SIZE;
+	long long blocks_needed = (total_threads_needed + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 	if (blocks_needed > 65536) {
 		blocks = 65536;
 	} else {

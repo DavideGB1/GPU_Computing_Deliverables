@@ -86,36 +86,34 @@ void sort_COO(COO_Matrix *coo) {
 CSR_Matrix* create_CSR(COO_Matrix* coo)
 {
     CSR_Matrix *csr = (CSR_Matrix *)malloc(sizeof(CSR_Matrix));
-    int *row = (int *)calloc((coo->n_row + 1), sizeof(int));
-    int *col = (int *)malloc(sizeof(int) * coo->nnz);
-    double *val = (double *)malloc(sizeof(double) * coo->nnz);
+    int *row_ptr = (int *)calloc((coo->n_row + 1), sizeof(int));
+    int *col_ind = (int *)malloc(sizeof(int) * coo->nnz);
+    double *values = (double *)malloc(sizeof(double) * coo->nnz);
 
-    // 1. Raggruppiamo i dati in un array temporaneo di struct
-    SparseElement *elems = (SparseElement *)malloc(sizeof(SparseElement) * coo->nnz);
+    // 1. Conta quanti elementi ci sono per ogni riga (Counting Sort step 1)
     for (int i = 0; i < coo->nnz; i++) {
-        elems[i].row = coo->rows[i];
-        elems[i].col = coo->cols[i];
-        elems[i].val = coo->vals[i];
+        row_ptr[coo->rows[i] + 1]++;
     }
 
-    // 2. Usiamo il qsort nativo (velocissimo: O(N log N))
-    qsort(elems, coo->nnz, sizeof(SparseElement), compare_elements);
-
-    // 3. Costruiamo gli array CSR a partire dai dati ordinati
-    for (int i = 0; i < coo->nnz; i++) {
-        col[i] = elems[i].col;
-        val[i] = elems[i].val;
-        row[elems[i].row + 1]++;
-    }
-
-    // Accumulo per i row pointers
-    row[0] = 0;
+    // 2. Trasforma i conteggi in puntatori (Prefix Sum)
     for (int i = 0; i < coo->n_row; i++) {
-        row[i+1] += row[i];
+        row_ptr[i+1] += row_ptr[i];
     }
 
-    // 4. Pulizia
-    free(elems);
+    // 3. Usa un array temporaneo per sapere dove inserire il prossimo elemento di ogni riga
+    int *temp_ptr = (int *)malloc(sizeof(int) * coo->n_row);
+    memcpy(temp_ptr, row_ptr, sizeof(int) * coo->n_row);
+
+    // 4. Distribuisci i dati (O(N) invece di O(N log N))
+    for (int i = 0; i < coo->nnz; i++) {
+        int r = coo->rows[i];
+        int dest = temp_ptr[r];
+        col_ind[dest] = coo->cols[i];
+        values[dest] = coo->vals[i];
+        temp_ptr[r]++;
+    }
+
+    free(temp_ptr);
 
     csr->n_row = coo->n_row;
     csr->n_col = coo->n_col;
