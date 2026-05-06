@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
+#ifndef min
+#define min(a,b) (((a)<(b))?(a):(b))
+#endif
 COO_Matrix* create_COO(int nnz, int n_row, int n_col)
 {
     COO_Matrix *coo = (COO_Matrix *)malloc(sizeof(COO_Matrix));
@@ -169,7 +171,8 @@ COO_Matrix* mm_parser(FILE *file)
 
     int i=0,j=0;
     double val=1;
-    for (int idx = 0; idx < nnz; idx++)
+	int idx = 0;
+    for (idx = 0; idx < nnz; idx++)
     {
         if (is_pattern)
         {
@@ -183,7 +186,7 @@ COO_Matrix* mm_parser(FILE *file)
         coo->rows[idx] = i;
         coo->cols[idx] = j;
         coo->vals[idx] = val;
-        if (is_symmetric)
+        if (is_symmetric && (i != j))
         {
             idx++;
             coo->rows[idx] = j;
@@ -191,52 +194,69 @@ COO_Matrix* mm_parser(FILE *file)
             coo->vals[idx] = val;
         }
     }
-
+	coo->nnz=idx;
     return coo;
 }
 
-ELL_Matrix* create_ELL(CSR_Matrix* csr){
+ELL_Matrix* create_ELL(CSR_Matrix* csr, int slice_size){
     ELL_Matrix *ell = (ELL_Matrix *)malloc(sizeof(ELL_Matrix));
-    int max = 0;
-    int val = 0;
-    for (int i = 0; i < csr->n_row; i++) {
-        val = csr->row_ptr[i+1]-csr->row_ptr[i];
-        if (val > max) {
-            max = val;
+	ell->C = slice_size;
+	int n_slices = (csr->n_row + slice_size - 1) / slice_size;
+	ell->n_slices = n_slices;
+	int *slc_ptr = (int *)calloc(n_slices+1, sizeof(int));
+	slc_ptr[0]=0;
+	int *slc_max = (int *)calloc(n_slices, sizeof(int));
+	for (int i = 0; i < n_slices; i++) {
+		int max = 0;
+        int val = 0;
+        for (int row = i*slice_size; row < min((i+1)*slice_size, csr->n_row); row++) {
+            val = csr->row_ptr[row+1]-csr->row_ptr[row];
+            if (val > max) {
+                max = val;
+            }
         }
-    }
-    int *ell_col = (int *)calloc(max * csr->n_row, sizeof(int));
-    double *ell_val = (double *)calloc(max * csr->n_row, sizeof(double));
-    for (int i = 0; i < csr->n_row; i++) {
-        int row_start = csr->row_ptr[i];
-        int row_end   = csr->row_ptr[i+1];
-        int count = 0;
+		slc_max[i]=max;
+		slc_ptr[i+1] = max*slice_size + slc_ptr[i];
+	}
+	int total_size = slc_ptr[n_slices];
+    int *ell_col = (int *)calloc(total_size, sizeof(int));
+    double *ell_val = (double *)calloc(total_size, sizeof(double));
+	for(int i = 0; i < n_slices; i++) {
+		int offset = slc_ptr[i];
+        int max = slc_max[i];
+		for(int j = 0; j < slice_size; j++) {
+			int row = (i*slice_size) + j;
+			if(row < csr->n_row) {
+				int csr_row_start = csr->row_ptr[row];
+				int csr_row_size = csr->row_ptr[row+1] - csr_row_start;
+				for(int k = 0; k < max; k++) {
+					int sell_id = offset + (k*slice_size) + j;
+					if(k < csr_row_size){
+						ell_val[sell_id] = csr->values[csr_row_start + k];
+			            ell_col[sell_id] = csr->col_ind[csr_row_start + k];
 
-        for (int j = row_start; j < row_end; j++) {
-            //Column Major Order to imrpvoe memory Coalescing
-            ell_val[count * csr->n_row + i] = csr->values[j];
-            ell_col[count * csr->n_row + i] = csr->col_ind[j];
-            count++;
-        }
-        //Padding with indev invalidation
-        for (int j = count; j < max; j++) {
-            ell_val[j * csr->n_row + i] = 0.0;
-            ell_col[j * csr->n_row + i] = 0;
-        }
-    }
-
-    ell->max_nnz = max;
+					} else {
+						ell_val[sell_id] = 0.0;
+			            ell_col[sell_id] = 0;
+					}
+				}
+			}
+		}
+	}
+	ell->slice_ptr =slc_ptr;
+    ell->max_nnz = total_size;
     ell->n_row = csr->n_row;
     ell->n_col = csr->n_col;
     ell->nnz = csr->nnz;
     ell->cols = ell_col;
     ell->vals = ell_val;
-
+	free(slc_max);
     return ell;
 }
 void free_ELL(ELL_Matrix *ell)
 {
     free(ell->vals);
     free(ell->cols);
+	free(ell->slice_ptr);
     free(ell);
 }

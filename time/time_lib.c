@@ -58,7 +58,7 @@ void print_stats(const char *label, double *timers, double *errors,int nnz, int 
             break;
         case FORMAT_ELL:
             //High because we also account for useless 0 padding moved
-            bytes = (int)max_nnz * n_row * 12;
+            bytes = (int)max_nnz * 16;
             break;
     }
     //Vector x and Vector Res access

@@ -9,7 +9,7 @@
 #define WARMUP 10
 #define NITER 50
 #define WARP_SIZE 32
-#define THREADS_PER_BLOCK 32
+#define THREADS_PER_BLOCK 256
 
 __global__ void SpMV_COO(
     int nnz,
@@ -110,19 +110,26 @@ __global__ void SpMV_CSR_Vector_shuffle(
 
 __global__ void SpMV_ELL(
     int n_row,
-	int max_nnz,
+	int slice_size,
     const int    *__restrict__ ell_cols,
+	const int *__restrict__ slice_ptr,
     const double    *__restrict__ ell_vals,
     const double *__restrict__ vector,
     double *res)
 {
-    int i = threadIdx.x + blockIdx.x * blockDim.x;
-    double sum=0.0;
-    if (i < n_row){
-        for(int j = 0; j < max_nnz; j++) {
-            sum += ell_vals[i+n_row*j] * vector[ell_cols[i+n_row*j]];
+    int row = threadIdx.x + blockIdx.x * blockDim.x;
+	int slice_idx = row / slice_size;
+	int lane_id = row % slice_size;
+    if (row < n_row){
+	    double sum=0.0;
+		int start = slice_ptr[slice_idx];
+        int end   = slice_ptr[slice_idx + 1];
+        int slice_width = (end - start) / slice_size;
+        for(int j = 0; j < slice_width; j++) {
+			int sell_id = start + (j * slice_size) + lane_id;
+            sum += ell_vals[sell_id] * vector[ell_cols[sell_id]];
         }
-		res[i] = sum;
+		res[row] = sum;
     }
 }
 
@@ -382,14 +389,21 @@ int main(int argc, char *argv[]) {
     cusparseDestroyDnVec(vecY);
     cusparseDestroy(handle);
 	cudaFree(d_row_ptr); cudaFree(d_col_ind); cudaFree(d_values);
-	int max_nnz = 0;
-    for (int i = 0; i < csr->n_row; i++) {
-        int row_nnz = csr->row_ptr[i+1] - csr->row_ptr[i];
-        if (row_nnz > max_nnz) {
-            max_nnz = row_nnz;
+
+	int slc_max = 0;
+	for (int i = 0; i < n_slices; i++) {
+		int max = 0;
+        int val = 0;
+        for (int row = i*slice_size; row < min((i+1)*slice_size, csr->n_row); row++) {
+            val = csr->row_ptr[row+1]-csr->row_ptr[row];
+            if (val > max) {
+                max = val;
+            }
         }
-    }
-    size_t ell_mem_required = (size_t)csr->n_row * (size_t)max_nnz * 12;
+		slc_max+=max*n_slices;
+	}
+
+    size_t ell_mem_required = slc_max * 16;
     size_t free_byte, total_byte;
     cudaMemGetInfo(&free_byte, &total_byte);
 
@@ -401,22 +415,25 @@ int main(int argc, char *argv[]) {
 		free_CSR(csr);
 	} else {
 	// ELLPACK
-    printf("ELL SpMV\n");
-		ELL_Matrix *ell = create_ELL(csr);
+    printf("SELL-32 SpMV\n");
+		ELL_Matrix *ell = create_ELL(csr, WARP_SIZE);
     	free_CSR(csr);
 
-        int *ell_col; double *ell_val;
-        cudaMalloc(&ell_col, ell->max_nnz * ell->n_row * sizeof(int));
-        cudaMalloc(&ell_val, ell->max_nnz * ell->n_row   * sizeof(double));
-        cudaMemcpy(ell_col, ell->cols, ell->max_nnz * ell->n_row   * sizeof(int),    cudaMemcpyHostToDevice);
-        cudaMemcpy(ell_val, ell->vals, ell->max_nnz * ell->n_row   * sizeof(double), cudaMemcpyHostToDevice);
+        int *ell_col, *ell_slc_ptr;
+		double *ell_val;
+        cudaMalloc(&ell_col, ell->max_nnz * sizeof(int));
+        cudaMalloc(&ell_val, ell->max_nnz * sizeof(double));
+		cudaMalloc(&ell_slc_ptr, (ell->n_slices + 1) * sizeof(int));
+        cudaMemcpy(ell_col, ell->cols, ell->max_nnz * sizeof(int),    cudaMemcpyHostToDevice);
+        cudaMemcpy(ell_val, ell->vals, ell->max_nnz * sizeof(double), cudaMemcpyHostToDevice);
+		cudaMemcpy(ell_slc_ptr, ell->slice_ptr, (ell->n_slices + 1) * sizeof(int), cudaMemcpyHostToDevice);
         blocks = (ell->n_row + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
         for (int i = -WARMUP; i < NITER; i++) {
             cudaMemset(d_res, 0, ell->n_row * sizeof(double));
 
             cudaEventRecord(start);
-            SpMV_ELL<<<blocks, THREADS_PER_BLOCK>>>(ell->n_row, ell->max_nnz,ell_col, ell_val, d_vec, d_res);
+            SpMV_ELL<<<blocks, THREADS_PER_BLOCK>>>(ell->n_row, WARP_SIZE,ell_col, ell_slc_ptr, ell_val, d_vec, d_res);
             cudaEventRecord(stop);
             cudaEventSynchronize(stop);
             cudaEventElapsedTime(&ms, start, stop);
@@ -431,8 +448,9 @@ int main(int argc, char *argv[]) {
             }
             printf("Iteration %d tooks %lf ms\n", i, iter_time);
         }
-        print_stats("ELLpack", timers, errors, ell->nnz, ell->max_nnz, ell->n_row, ell->n_col, argv[1], stats_file, FORMAT_ELL, NITER,THREADS_PER_BLOCK);
+        print_stats("SELLpack-32", timers, errors, ell->nnz, ell->max_nnz, ell->n_row, ell->n_col, argv[1], stats_file, FORMAT_ELL, NITER,THREADS_PER_BLOCK);
 	    cudaFree(ell_col);
+	    cudaFree(ell_slc_ptr);
 	    cudaFree(ell_val);
 		free_ELL(ell);
 	}

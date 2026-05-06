@@ -32,6 +32,9 @@ typedef struct {
     int n_row;
     int n_col;
     int max_nnz;
+    int C;
+    int n_slices;
+    int *slice_ptr;
 } ELL_Matrix;
 void free_ELL(ELL_Matrix *ell);
 ELL_Matrix* create_ELL(CSR_Matrix* csr);
