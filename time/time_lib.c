@@ -51,19 +51,19 @@ void print_stats(const char *label, double *timers, double *errors,int nnz, int 
     long bytes;
     switch (format) {
         case FORMAT_COO:
-            bytes = (int)nnz * 16;
+            bytes = (long)nnz * 16LL;
             break;
         case FORMAT_CSR:
-            bytes = (int)nnz * 12 + (int)n_row * 4 + 4;
+            bytes = (long)nnz * 12LL + (long)n_row * 4LL + 4LL;
             break;
         case FORMAT_ELL:
-			int n_slices = (n_row + 32 - 1) / 32;
+			long n_slices = ((long)n_row + 31LL) / 32LL;
             //High because we also account for useless 0 padding moved
-            bytes = (int)max_nnz * 12 + (n_slices +1)* 4;
+            bytes = (long)max_nnz * 12LL + (n_slices +1LL)* 4LL;
             break;
     }
     //Vector x and Vector Res access
-    bytes += (n_col + n_row) * 8;
+    bytes += (long long)(n_col + n_row) * 8LL;
 
     double gflops = (2.0 * nnz) / (avg * 1e6);
     double bandwidth = (double)bytes / (avg * 1e6);
@@ -73,12 +73,5 @@ void print_stats(const char *label, double *timers, double *errors,int nnz, int 
 
     fprintf(csv, "%s,%s,%.6f,%.6f,%.6f,%.6f,%.4f,%.4f,%.2e,%d\n",
             matrix_name, label, avg, stddev, mn, mx, gflops, bandwidth,avg_err, block_size);
-}
-double geometric_mean(double array[],int len){
-    double res = 1.0;
-    for(int i=0;i<len;i++){
-        res *= array[i] > 0.0 ? array[i] : 1;
-    }
-    return pow(res,1.0/len);
 }
 // -------------------------------------------------
