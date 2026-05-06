@@ -57,7 +57,7 @@ void print_stats(const char *label, double *timers, double *errors,int nnz, int 
             bytes = (int)nnz * 12 + (int)n_row * 4 + 4;
             break;
         case FORMAT_ELL:
-			int n_slices = (csr->n_row + WARP_SIZE - 1) / WARP_SIZE;
+			int n_slices = (n_row + 32 - 1) / 32;
             //High because we also account for useless 0 padding moved
             bytes = (int)max_nnz * 12 + (n_slices +1)* 4;
             break;
