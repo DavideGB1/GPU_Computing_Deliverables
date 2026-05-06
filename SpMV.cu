@@ -401,7 +401,7 @@ int main(int argc, char *argv[]) {
                 max = val;
             }
         }
-		slc_max+=max*n_slices;
+		slc_max+=max*WARP_SIZE;
 	}
 
     size_t ell_mem_required = slc_max * 16;
