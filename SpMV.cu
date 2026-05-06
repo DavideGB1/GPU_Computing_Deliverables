@@ -243,7 +243,7 @@ int main(int argc, char *argv[]) {
     }
     cudaFree(d_row); cudaFree(d_col); cudaFree(d_val);
     free_COO(coo);
-    print_stats("COO", timers, errors, coo->nnz, 0,coo->n_row, argv[1], stats_file, FORMAT_COO, NITER,THREADS_PER_BLOCK);
+    print_stats("COO", timers, errors, coo->nnz, 0,coo->n_row, coo->n_col, argv[1], stats_file, FORMAT_COO, NITER,THREADS_PER_BLOCK);
 
     // CSR-Scalar
     printf("CSR-Scalar SpMV\n");
@@ -275,7 +275,7 @@ int main(int argc, char *argv[]) {
         }
         printf("Iteration %d tooks %lf ms\n", i, iter_time);
     }
-    print_stats("CSR-Scalar", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
+    print_stats("CSR-Scalar", timers, errors, csr->nnz, 0, csr->n_row, csr->n_col, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
 
     // CSR-Vector
     printf("CSR-Vector SpMV\n");
@@ -300,7 +300,7 @@ int main(int argc, char *argv[]) {
         }
         printf("Iteration %d tooks %lf ms\n", i, iter_time);
     }
-    print_stats("CSR-Vector", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
+    print_stats("CSR-Vector", timers, errors, csr->nnz, 0, csr->n_row, csr->n_col, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
 	// CSR-Vector Shuffle (No Shared Memory)
     printf("CSR-Vector Shuffle SpMV\n");
     blocks = (csr->n_row * WARP_SIZE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
@@ -324,7 +324,7 @@ int main(int argc, char *argv[]) {
         }
         printf("Iteration %d tooks %lf ms\n", i, iter_time);
     }
-    print_stats("CSR-Vector Shuffle", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
+    print_stats("CSR-Vector Shuffle", timers, errors, csr->nnz, 0, csr->n_row, csr->n_col, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
 		//Ellpack converting
 
 	// cuSPARSE
@@ -374,7 +374,7 @@ int main(int argc, char *argv[]) {
         }
         printf("Iteration %d took %lf ms\n", i, iter_time);
     }
-    print_stats("cuSPARSE", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
+    print_stats("cuSPARSE", timers, errors, csr->nnz, 0, csr->n_row, csr->n_col, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
 
     cudaFree(d_buffer);
     cusparseDestroySpMat(matA);
@@ -431,7 +431,7 @@ int main(int argc, char *argv[]) {
             }
             printf("Iteration %d tooks %lf ms\n", i, iter_time);
         }
-        print_stats("ELLpack", timers, errors, ell->nnz, ell->max_nnz, ell->n_row, argv[1], stats_file, FORMAT_ELL, NITER,THREADS_PER_BLOCK);
+        print_stats("ELLpack", timers, errors, ell->nnz, ell->max_nnz, ell->n_row, ell->n_col, argv[1], stats_file, FORMAT_ELL, NITER,THREADS_PER_BLOCK);
 	    cudaFree(ell_col);
 	    cudaFree(ell_val);
 		free_ELL(ell);

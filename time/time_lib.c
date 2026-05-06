@@ -36,7 +36,7 @@ double relative_error(double cpu_result[],double gpu_result[], int len){
     return sum_diff / sum_cpu;
 }
 
-void print_stats(const char *label, double *timers, double *errors,int nnz, int max_nnz, int n_row,
+void print_stats(const char *label, double *timers, double *errors,int nnz, int max_nnz, int n_row, int n_col,
                  const char *matrix_name, FILE *csv, SpMVFormat format, int NITER, int block_size) {
 
     double mn = timers[0], mx = timers[0];
