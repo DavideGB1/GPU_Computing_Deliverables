@@ -124,6 +124,7 @@ CSR_Matrix* create_CSR(COO_Matrix* coo)
 
     return csr;
 }
+
 void print_CSR(CSR_Matrix *csr)
 {
     for (int i = 0; i < csr->n_row; ++i) {
@@ -194,4 +195,48 @@ COO_Matrix* mm_parser(FILE *file)
     return coo;
 }
 
+ELL_Matrix* create_ELL(CSR_Matrix* csr){
+    ELL_Matrix *ell = (ELL_Matrix *)malloc(sizeof(ELL_Matrix));
+    int max = 0;
+    int val = 0;
+    for (int i = 0; i < csr->n_row; i++) {
+        val = csr->row_ptr[i+1]-csr->row_ptr[i];
+        if (val > max) {
+            max = val;
+        }
+    }
+    int *ell_col = (int *)calloc(sizeof(int) * max*csr->n_row);
+    double *ell_val = (double *)calloc(sizeof(double) * max*csr->n_row);
+    for (int i = 0; i < csr->n_row; i++) {
+        int row_start = csr->row_ptr[i];
+        int row_end   = csr->row_ptr[i+1];
+        int count = 0;
 
+        for (int j = row_start; j < row_end; j++) {
+            //Column Major Order to imrpvoe memory Coalescing
+            ell_val[count * csr->n_row + i] = csr->values[j];
+            ell_col[count * csr->n_row + i] = csr->col_ind[j];
+            count++;
+        }
+        //Padding with indev invalidation
+        for (int j = count; j < max; j++) {
+            ell_val[j * csr->n_row + i] = 0.0;
+            ell_col[j * csr->n_row + i] = 0;
+        }
+    }
+
+    ell->max_nnz = max;
+    ell->n_row = csr->n_row;
+    ell->n_col = csr->n_col;
+    ell->nnz = csr->nnz;
+    ell->cols = ell_col;
+    ell->vals = ell_val;
+
+    return ell;
+}
+void free_ELL(ELL_Matrix *ell)
+{
+    free(ell->vals);
+    free(ell->cols);
+    free(ell);
+}

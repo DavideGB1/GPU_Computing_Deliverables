@@ -36,7 +36,7 @@ double relative_error(double cpu_result[],double gpu_result[], int len){
     return sum_diff / sum_cpu;
 }
 
-void print_stats(const char *label, double *timers, double *errors,int nnz, int n_row,
+void print_stats(const char *label, double *timers, double *errors,int nnz, int max_nnz, int n_row,
                  const char *matrix_name, FILE *csv, SpMVFormat format, int NITER) {
 
     double mn = timers[0], mx = timers[0];
@@ -57,9 +57,11 @@ void print_stats(const char *label, double *timers, double *errors,int nnz, int 
             bytes = (int)nnz * 12 + (int)n_row * 4 + 4;
             break;
         case FORMAT_ELL:
-            bytes = (int)nnz * 20 + (int)n_row * 8;
+            bytes = (int)max_nnz * n_row * 12;
             break;
     }
+    //Vector x and Vector Res access
+    bytes += (nnz + n_row) * 8;
 
     double gflops = (2.0 * nnz) / (avg * 1e6);
     double bandwidth = (double)bytes / (avg * 1e6);

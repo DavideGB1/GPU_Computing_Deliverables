@@ -15,6 +15,7 @@ typedef struct {
     int n_col;
 } COO_Matrix;
 
+
 typedef struct {
     int *row_ptr;
     int *col_ind;
@@ -23,6 +24,17 @@ typedef struct {
     int n_row;
     int n_col;
 } CSR_Matrix;
+
+typedef struct {
+    int *cols;
+    double *vals;
+    int nnz;
+    int n_row;
+    int n_col;
+    int max_nnz;
+} ELL_Matrix;
+void free_ELL(ELL_Matrix *ell);
+ELL_Matrix* create_ELL(CSR_Matrix* csr);
 
 COO_Matrix* create_COO(int nnz, int n_row, int n_col);
 void free_COO(COO_Matrix *coo);
