@@ -390,21 +390,23 @@ int main(int argc, char *argv[]) {
     cusparseDestroy(handle);
 	cudaFree(d_row_ptr); cudaFree(d_col_ind); cudaFree(d_values);
 
-	int slc_max = 0;
+	long long slc_total_cells = 0;
 	int n_slices = (csr->n_row + WARP_SIZE - 1) / WARP_SIZE;
-	for (int i = 0; i < n_slices; i++) {
-		int max = 0;
-        int val = 0;
-        for (int row = i*WARP_SIZE; row < min((i+1)*WARP_SIZE, csr->n_row); row++) {
-            val = csr->row_ptr[row+1]-csr->row_ptr[row];
-            if (val > max) {
-                max = val;
-            }
-        }
-		slc_max+=max*WARP_SIZE;
-	}
+    for (int i = 0; i < n_slices; i++) {
+        int max_in_slice = 0;
+        int row_start = i * WARP_SIZE;
+        int row_end = (i + 1) * WARP_SIZE;
+        if (row_end > csr->n_row) row_end = csr->n_row;
 
-    size_t ell_mem_required = slc_max * 16;
+        for (int row = row_start; row < row_end; row++) {
+            int row_nnz = csr->row_ptr[row + 1] - csr->row_ptr[row];
+            if (row_nnz > max_in_slice) max_in_slice = row_nnz;
+        }
+        slc_total_cells += (long long)max_in_slice * WARP_SIZE;
+    }
+
+	unsigned long long mem = (unsigned long long)slc_total_cells * 12 + (n_slices+1)*4;
+
     size_t free_byte, total_byte;
     cudaMemGetInfo(&free_byte, &total_byte);
 
