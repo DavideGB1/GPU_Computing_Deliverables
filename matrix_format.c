@@ -205,8 +205,8 @@ ELL_Matrix* create_ELL(CSR_Matrix* csr){
             max = val;
         }
     }
-    int *ell_col = (int *)calloc(sizeof(int) * max*csr->n_row);
-    double *ell_val = (double *)calloc(sizeof(double) * max*csr->n_row);
+    int *ell_col = (int *)calloc(max * csr->n_row, sizeof(int));
+    double *ell_val = (double *)calloc(max * csr->n_row, sizeof(double));
     for (int i = 0; i < csr->n_row; i++) {
         int row_start = csr->row_ptr[i];
         int row_end   = csr->row_ptr[i+1];
