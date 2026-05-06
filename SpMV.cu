@@ -52,33 +52,38 @@ __global__ void SpMV_CSR_Vector(
     const double *__restrict__ vector,
     double *res)
 {
+	int total_threads = gridDim.x * blockDim.x;
+    int total_warps = total_threads / 32;
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
     int warp_id = thread_id / 32;
     int lane_id = thread_id % 32;
     int local_id  = threadIdx.x;
     __shared__ double sum[THREADS_PER_BLOCK];
 
-    sum[local_id] = 0;
-    if (warp_id < n_row){
-        for(int j = row_ptr[warp_id] + lane_id; j < row_ptr[warp_id+1]; j += WARP_SIZE) {
-            sum[local_id] += values[j] * vector[col_ind[j]];
+	for (int r = warp_id; r < n_row; r += total_warps) {
+
+        sum[local_id] = 0;
+        if (r < n_row){
+            for(int j = row_ptr[r] + lane_id; j < row_ptr[r+1]; j += WARP_SIZE) {
+                sum[local_id] += values[j] * vector[col_ind[j]];
+            }
         }
-    }
-    __syncthreads();
+        __syncthreads();
 
-    if (lane_id < 16) { sum[local_id] += sum[local_id + 16]; }
-    __syncwarp();
-    if (lane_id < 8)  { sum[local_id] += sum[local_id + 8]; }
-    __syncwarp();
-    if (lane_id < 4)  { sum[local_id] += sum[local_id + 4]; }
-    __syncwarp();
-    if (lane_id < 2)  { sum[local_id] += sum[local_id + 2]; }
-    __syncwarp();
+        if (lane_id < 16) { sum[local_id] += sum[local_id + 16]; }
+        __syncwarp();
+        if (lane_id < 8)  { sum[local_id] += sum[local_id + 8]; }
+        __syncwarp();
+        if (lane_id < 4)  { sum[local_id] += sum[local_id + 4]; }
+        __syncwarp();
+        if (lane_id < 2)  { sum[local_id] += sum[local_id + 2]; }
+        __syncwarp();
 
-    if (lane_id == 0 && warp_id < n_row){
-        sum[local_id] += sum[local_id + 1];
-        res[warp_id] = sum[local_id];
-    }
+        if (lane_id == 0 && r < n_row){
+            sum[local_id] += sum[local_id + 1];
+            res[r] = sum[local_id];
+        }
+	}
 }
 
 __global__ void SpMV_CSR_Vector_shuffle(
@@ -89,23 +94,26 @@ __global__ void SpMV_CSR_Vector_shuffle(
     const double *__restrict__ vector,
     double *res)
 {
+	int total_threads = gridDim.x * blockDim.x;
+    int total_warps = total_threads / 32;
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
     int warp_id = thread_id / 32;
     int lane_id = thread_id % 32;
-    double sum=0.0;
-
-    if (warp_id < n_row){
-        for(int j = row_ptr[warp_id] + lane_id; j < row_ptr[warp_id+1]; j += WARP_SIZE) {
-            sum += values[j] * vector[col_ind[j]];
+	for (int r = warp_id; r < n_row; r += total_warps) {
+	    double sum=0.0;
+        if (r < n_row){
+            for(int j = row_ptr[r] + lane_id; j < row_ptr[r+1]; j += WARP_SIZE) {
+                sum += values[j] * vector[col_ind[j]];
+            }
         }
-    }
-    for (int offset = 16; offset > 0; offset /= 2) {
-        sum += __shfl_down_sync(0xffffffff, sum, offset);
-    }
+        for (int offset = 16; offset > 0; offset /= 2) {
+            sum += __shfl_down_sync(0xffffffff, sum, offset);
+        }
 
-    if (lane_id == 0 && warp_id < n_row){
-        res[warp_id] = sum;
-    }
+        if (lane_id == 0 && r < n_row){
+            res[r] = sum;
+        }
+	}
 }
 
 __global__ void SpMV_ELL(
@@ -286,8 +294,12 @@ int main(int argc, char *argv[]) {
 
     // CSR-Vector
     printf("CSR-Vector SpMV\n");
-    blocks = (csr->n_row * WARP_SIZE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-
+	long long blocks_needed = (csr->n_row * WARP_SIZE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+	if (blocks_needed > 65536) {
+		blocks = 65536;
+	} else {
+   	 	blocks = (csr->n_row * WARP_SIZE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+	}
     for (int i = -WARMUP; i < NITER; i++) {
         cudaMemset(d_res, 0, csr->n_row * sizeof(double));
 
@@ -310,7 +322,6 @@ int main(int argc, char *argv[]) {
     print_stats("CSR-Vector", timers, errors, csr->nnz, 0, csr->n_row, csr->n_col, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
 	// CSR-Vector Shuffle (No Shared Memory)
     printf("CSR-Vector Shuffle SpMV\n");
-    blocks = (csr->n_row * WARP_SIZE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
     for (int i = -WARMUP; i < NITER; i++) {
         cudaMemset(d_res, 0, csr->n_row * sizeof(double));
