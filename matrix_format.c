@@ -140,61 +140,55 @@ void free_CSR(CSR_Matrix *csr)
     free(csr->values);
     free(csr);
 }
-COO_Matrix* mm_parser(FILE *file)
-{
+COO_Matrix* mm_parser(FILE *file){
     char buffer[256];
-    int res;
-    //Read header
-    fgets(buffer, sizeof(buffer), file);
-    int is_symmetric = 0;
-    if (strstr(buffer,"symmetric")!= NULL)
-    {
-        is_symmetric = 1;
-    }
-    int is_pattern = 0;
-    if (strstr(buffer,"pattern")!=NULL)
-    {
-        is_pattern = 1;
-    }
+    if (!fgets(buffer, sizeof(buffer), file)) return NULL;
+
+    int is_symmetric = (strstr(buffer, "symmetric") != NULL);
+    int is_pattern   = (strstr(buffer, "pattern") != NULL);
+
     while (fgets(buffer, sizeof(buffer), file)) {
         if (buffer[0] != '%') break;
     }
-    int M=0,N=0,nnz=0;
-    sscanf(buffer,"%d %d %d",&M,&N,&nnz);
-    if (is_symmetric)
-    {
-        nnz*=2;
-    }
-    COO_Matrix* coo = create_COO(nnz,M,N);
 
-    int i=0,j=0;
-    double val=1;
-	int idx = 0;
-    for (idx = 0; idx < nnz; idx++)
-    {
-        if (is_pattern)
-        {
-            fscanf(file, "%d %d", &i, &j);
-        }else
-        {
-            fscanf(file, "%d %d %lf", &i, &j, &val);
+    int M = 0, N = 0, lines_in_file = 0;
+    if (sscanf(buffer, "%d %d %d", &M, &N, &lines_in_file) != 3) return NULL;
+
+    int max_alloc = is_symmetric ? (lines_in_file * 2) : lines_in_file;
+    COO_Matrix* coo = create_COO(max_alloc, M, N);
+    if (!coo) return NULL;
+
+    int i = 0, j = 0;
+    double val = 1.0;
+    int current_nnz = 0;
+
+    for (int l = 0; l < lines_in_file; l++) {
+        if (is_pattern) {
+            if (fscanf(file, "%d %d", &i, &j) != 2) break;
+        } else {
+            if (fscanf(file, "%d %d %lf", &i, &j, &val) != 3) break;
         }
-        i--;
-        j--;
-        coo->rows[idx] = i;
-        coo->cols[idx] = j;
-        coo->vals[idx] = val;
-        if (is_symmetric && (i != j))
-        {
-            idx++;
-            coo->rows[idx] = j;
-            coo->cols[idx] = i;
-            coo->vals[idx] = val;
+
+        i--; j--;
+
+        coo->rows[current_nnz] = i;
+        coo->cols[current_nnz] = j;
+        coo->vals[current_nnz] = val;
+        current_nnz++;
+
+        if (is_symmetric && (i != j)) {
+            coo->rows[current_nnz] = j;
+            coo->cols[current_nnz] = i;
+            coo->vals[current_nnz] = val;
+            current_nnz++;
         }
     }
-	coo->nnz=idx;
+
+    coo->nnz = current_nnz;
+
     return coo;
 }
+
 
 ELL_Matrix* create_ELL(CSR_Matrix* csr, int slice_size){
     ELL_Matrix *ell = (ELL_Matrix *)malloc(sizeof(ELL_Matrix));
