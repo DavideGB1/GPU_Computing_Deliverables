@@ -391,11 +391,11 @@ int main(int argc, char *argv[]) {
 	cudaFree(d_row_ptr); cudaFree(d_col_ind); cudaFree(d_values);
 
 	int slc_max = 0;
-	int n_slices = (csr->n_row + slice_size - 1) / slice_size;
+	int n_slices = (csr->n_row + WARP_SIZE - 1) / WARP_SIZE;
 	for (int i = 0; i < n_slices; i++) {
 		int max = 0;
         int val = 0;
-        for (int row = i*slice_size; row < min((i+1)*slice_size, csr->n_row); row++) {
+        for (int row = i*WARP_SIZE; row < min((i+1)*WARP_SIZE, csr->n_row); row++) {
             val = csr->row_ptr[row+1]-csr->row_ptr[row];
             if (val > max) {
                 max = val;
