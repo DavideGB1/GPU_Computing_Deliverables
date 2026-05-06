@@ -391,6 +391,7 @@ int main(int argc, char *argv[]) {
 	cudaFree(d_row_ptr); cudaFree(d_col_ind); cudaFree(d_values);
 
 	int slc_max = 0;
+	int n_slices = (csr->n_row + slice_size - 1) / slice_size;
 	for (int i = 0; i < n_slices; i++) {
 		int max = 0;
         int val = 0;

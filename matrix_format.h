@@ -37,7 +37,7 @@ typedef struct {
     int *slice_ptr;
 } ELL_Matrix;
 void free_ELL(ELL_Matrix *ell);
-ELL_Matrix* create_ELL(CSR_Matrix* csr);
+ELL_Matrix* create_ELL(CSR_Matrix* csr, int slice_size);
 
 COO_Matrix* create_COO(int nnz, int n_row, int n_col);
 void free_COO(COO_Matrix *coo);
