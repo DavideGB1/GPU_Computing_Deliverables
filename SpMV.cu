@@ -405,7 +405,7 @@ int main(int argc, char *argv[]) {
         slc_total_cells += (long long)max_in_slice * WARP_SIZE;
     }
 
-	unsigned long long mem = (unsigned long long)slc_total_cells * 12 + (n_slices+1)*4;
+	unsigned long long ell_mem_required = (unsigned long long)slc_total_cells * 12 + (n_slices+1)*4;
 
     size_t free_byte, total_byte;
     cudaMemGetInfo(&free_byte, &total_byte);
