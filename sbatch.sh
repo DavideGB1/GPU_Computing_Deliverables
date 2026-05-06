@@ -3,7 +3,7 @@
 #SBATCH --account=gpu.computing26
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:a30.24:1
+#SBATCH --gres=gpu:a100.80:1
 #SBATCH --cpus-per-task=4
 #SBATCH --time=00:05:00
 #SBATCH --job-name=test

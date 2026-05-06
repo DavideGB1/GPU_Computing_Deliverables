@@ -6,10 +6,10 @@
 #include "time/time_lib.h"
 #include <dirent.h>
 
-#define WARMUP 2
-#define NITER 10
+#define WARMUP 10
+#define NITER 50
 #define WARP_SIZE 32
-#define THREADS_PER_BLOCK 256
+#define THREADS_PER_BLOCK 32
 
 __global__ void SpMV_COO(
     int nnz,
@@ -204,11 +204,11 @@ int main(int argc, char *argv[]) {
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     float ms;
-
     // COO
     printf("Sorting COO SpMV\n");
     TIMER_START(0);
     sort_COO(coo);
+
     TIMER_STOP(0);
     printf("COO sorting time: %lf ms\n", TIMER_ELAPSED(0)/1.e3);
     int *d_row, *d_col; double *d_val;
@@ -242,7 +242,8 @@ int main(int argc, char *argv[]) {
         printf("Iteration %d tooks %lf ms\n", i, iter_time);
     }
     cudaFree(d_row); cudaFree(d_col); cudaFree(d_val);
-    print_stats("COO", timers, errors, coo->nnz, 0,coo->n_row, argv[1], stats_file, FORMAT_COO, NITER);
+    free_COO(coo);
+    print_stats("COO", timers, errors, coo->nnz, 0,coo->n_row, argv[1], stats_file, FORMAT_COO, NITER,THREADS_PER_BLOCK);
 
     // CSR-Scalar
     printf("CSR-Scalar SpMV\n");
@@ -274,7 +275,7 @@ int main(int argc, char *argv[]) {
         }
         printf("Iteration %d tooks %lf ms\n", i, iter_time);
     }
-    print_stats("CSR-Scalar", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER);
+    print_stats("CSR-Scalar", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
 
     // CSR-Vector
     printf("CSR-Vector SpMV\n");
@@ -299,7 +300,7 @@ int main(int argc, char *argv[]) {
         }
         printf("Iteration %d tooks %lf ms\n", i, iter_time);
     }
-    print_stats("CSR-Vector", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER);
+    print_stats("CSR-Vector", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
 	// CSR-Vector Shuffle (No Shared Memory)
     printf("CSR-Vector Shuffle SpMV\n");
     blocks = (csr->n_row * WARP_SIZE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
@@ -323,41 +324,10 @@ int main(int argc, char *argv[]) {
         }
         printf("Iteration %d tooks %lf ms\n", i, iter_time);
     }
-    print_stats("CSR-Vector Shuffle", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER);
+    print_stats("CSR-Vector Shuffle", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
 		//Ellpack converting
-    ELL_Matrix *ell = create_ELL(csr);
-	// ELLPACK
-    printf("ELL SpMV\n");
-    int *ell_col; double *ell_val;
-    cudaMalloc(&ell_col, ell->max_nnz * ell->n_row * sizeof(int));
-    cudaMalloc(&ell_val, ell->max_nnz * ell->n_row   * sizeof(double));
-    cudaMemcpy(ell_col, ell->cols, ell->max_nnz * ell->n_row   * sizeof(int),    cudaMemcpyHostToDevice);
-    cudaMemcpy(ell_val, ell->vals, ell->max_nnz * ell->n_row   * sizeof(double), cudaMemcpyHostToDevice);
-    blocks = (ell->n_row + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
-    for (int i = -WARMUP; i < NITER; i++) {
-        cudaMemset(d_res, 0, ell->n_row * sizeof(double));
-
-        cudaEventRecord(start);
-        SpMV_ELL<<<blocks, THREADS_PER_BLOCK>>>(ell->n_row, ell->max_nnz,ell_col, ell_val, d_vec, d_res);
-        cudaEventRecord(stop);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&ms, start, stop);
-
-        double iter_time = (double)ms;
-        cudaMemcpy(h_res, d_res, ell->n_row * sizeof(double), cudaMemcpyDeviceToHost);
-
-        if (i >= 0) {
-            timers[i] = iter_time;
-            double error = relative_error(cpu_res, h_res, ell->n_row);
-            errors[i] = error;
-        }
-        printf("Iteration %d tooks %lf ms\n", i, iter_time);
-    }
-    print_stats("ELLpack", timers, errors, ell->nnz, ell->max_nnz, ell->n_row, argv[1], stats_file, FORMAT_ELL, NITER);
-	cudaFree(ell_col);
-	cudaFree(ell_val);
-    // cuSPARSE
+	// cuSPARSE
     printf("cuSPARSE SpMV\n");
 
     cusparseHandle_t handle;
@@ -404,25 +374,77 @@ int main(int argc, char *argv[]) {
         }
         printf("Iteration %d took %lf ms\n", i, iter_time);
     }
-    print_stats("cuSPARSE", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER);
+    print_stats("cuSPARSE", timers, errors, csr->nnz, 0, csr->n_row, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
 
     cudaFree(d_buffer);
     cusparseDestroySpMat(matA);
     cusparseDestroyDnVec(vecX);
     cusparseDestroyDnVec(vecY);
     cusparseDestroy(handle);
+	cudaFree(d_row_ptr); cudaFree(d_col_ind); cudaFree(d_values);
+	int max_nnz = 0;
+    for (int i = 0; i < csr->n_row; i++) {
+        int row_nnz = csr->row_ptr[i+1] - csr->row_ptr[i];
+        if (row_nnz > max_nnz) {
+            max_nnz = row_nnz;
+        }
+    }
+    size_t ell_mem_required = (size_t)csr->n_row * (size_t)max_nnz * 12;
+    size_t free_byte, total_byte;
+    cudaMemGetInfo(&free_byte, &total_byte);
+
+    printf("ELL Required Memory: %zu bytes (%.2f GB)\n", ell_mem_required, (double)ell_mem_required / (1024*1024*1024));
+    printf("Free VRAM: %zu bytes (%.2f GB)\n", free_byte, (double)free_byte / (1024*1024*1024));
+
+    if (ell_mem_required > free_byte * 0.90) {
+        printf("Unable to run ELL.\n");
+		free_CSR(csr);
+	} else {
+	// ELLPACK
+    printf("ELL SpMV\n");
+		ELL_Matrix *ell = create_ELL(csr);
+    	free_CSR(csr);
+
+        int *ell_col; double *ell_val;
+        cudaMalloc(&ell_col, ell->max_nnz * ell->n_row * sizeof(int));
+        cudaMalloc(&ell_val, ell->max_nnz * ell->n_row   * sizeof(double));
+        cudaMemcpy(ell_col, ell->cols, ell->max_nnz * ell->n_row   * sizeof(int),    cudaMemcpyHostToDevice);
+        cudaMemcpy(ell_val, ell->vals, ell->max_nnz * ell->n_row   * sizeof(double), cudaMemcpyHostToDevice);
+        blocks = (ell->n_row + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+
+        for (int i = -WARMUP; i < NITER; i++) {
+            cudaMemset(d_res, 0, ell->n_row * sizeof(double));
+
+            cudaEventRecord(start);
+            SpMV_ELL<<<blocks, THREADS_PER_BLOCK>>>(ell->n_row, ell->max_nnz,ell_col, ell_val, d_vec, d_res);
+            cudaEventRecord(stop);
+            cudaEventSynchronize(stop);
+            cudaEventElapsedTime(&ms, start, stop);
+
+            double iter_time = (double)ms;
+            cudaMemcpy(h_res, d_res, ell->n_row * sizeof(double), cudaMemcpyDeviceToHost);
+
+            if (i >= 0) {
+                timers[i] = iter_time;
+                double error = relative_error(cpu_res, h_res, ell->n_row);
+                errors[i] = error;
+            }
+            printf("Iteration %d tooks %lf ms\n", i, iter_time);
+        }
+        print_stats("ELLpack", timers, errors, ell->nnz, ell->max_nnz, ell->n_row, argv[1], stats_file, FORMAT_ELL, NITER,THREADS_PER_BLOCK);
+	    cudaFree(ell_col);
+	    cudaFree(ell_val);
+		free_ELL(ell);
+	}
 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
+	cudaFree(d_vec); cudaFree(d_res);
 
-    cudaFree(d_row_ptr); cudaFree(d_col_ind); cudaFree(d_values); cudaFree(d_vec); cudaFree(d_res);
 
     free(cpu_res);
     free(vector);
     free(h_res);
-    free_CSR(csr);
-    free_COO(coo);
-	free_ELL(ell);
     fclose(stats_file);
     return 0;
 }

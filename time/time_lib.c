@@ -37,7 +37,7 @@ double relative_error(double cpu_result[],double gpu_result[], int len){
 }
 
 void print_stats(const char *label, double *timers, double *errors,int nnz, int max_nnz, int n_row,
-                 const char *matrix_name, FILE *csv, SpMVFormat format, int NITER) {
+                 const char *matrix_name, FILE *csv, SpMVFormat format, int NITER, int block_size) {
 
     double mn = timers[0], mx = timers[0];
     for (int i = 0; i < NITER; i++) {
@@ -57,20 +57,21 @@ void print_stats(const char *label, double *timers, double *errors,int nnz, int 
             bytes = (int)nnz * 12 + (int)n_row * 4 + 4;
             break;
         case FORMAT_ELL:
+            //High because we also account for useless 0 padding moved
             bytes = (int)max_nnz * n_row * 12;
             break;
     }
     //Vector x and Vector Res access
-    bytes += (nnz + n_row) * 8;
+    bytes += (n_col + n_row) * 8;
 
     double gflops = (2.0 * nnz) / (avg * 1e6);
     double bandwidth = (double)bytes / (avg * 1e6);
     double avg_err = arithmetic_mean(errors, NITER);
-    printf("[%s]  avg=%.6fms  stddev=%.6fms  GFLOP/s=%.2f  BW=%.2f GB/s  Avg_err=%.2e\n",
-           label, avg, stddev, gflops, bandwidth, avg_err);
+    printf("[%s]  avg=%.6fms  stddev=%.6fms  GFLOP/s=%.2f  BW=%.2f GB/s  Avg_err=%.2e  BlockSize:%d\n",
+           label, avg, stddev, gflops, bandwidth, avg_err, block_size);
 
-    fprintf(csv, "%s,%s,%.6f,%.6f,%.6f,%.6f,%.4f,%.4f,%.2e\n",
-            matrix_name, label, avg, stddev, mn, mx, gflops, bandwidth,avg_err);
+    fprintf(csv, "%s,%s,%.6f,%.6f,%.6f,%.6f,%.4f,%.4f,%.2e,%d\n",
+            matrix_name, label, avg, stddev, mn, mx, gflops, bandwidth,avg_err, block_size);
 }
 double geometric_mean(double array[],int len){
     double res = 1.0;

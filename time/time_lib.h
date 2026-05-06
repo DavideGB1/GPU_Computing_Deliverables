@@ -36,7 +36,7 @@ double standard_deviation(double array[], double mean, int len);
 double relative_error(double cpu_result[], double gpu_result[], int len);
 
 void print_stats(const char *label, double *timers, double *errors,int nnz, int max_nnz, int n_row,
-                     const char *matrix_name, FILE *csv, SpMVFormat format, int NITER);
+                     const char *matrix_name, FILE *csv, SpMVFormat format, int NITER, int block_size);
 
 #ifdef __cplusplus
 } // Chiusura corretta di extern "C"
