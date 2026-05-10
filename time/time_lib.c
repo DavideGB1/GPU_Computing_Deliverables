@@ -51,27 +51,33 @@ void print_stats(const char *label, double *timers, double *errors,int nnz, int 
     long bytes;
     switch (format) {
         case FORMAT_COO:
-            bytes = (long)nnz * 16LL;
+            bytes = (long)nnz * (long)(4+4+8); //Row, col, vals
             break;
         case FORMAT_CSR:
-            bytes = (long)nnz * 12LL + (long)n_row * 4LL + 4LL;
+            bytes = (long)nnz * (long)(4+8); //Cols and vals
+ 			bytes += (long)(n_row+1) * 4LL; //row_ptr
             break;
         case FORMAT_ELL:
 			long n_slices = ((long)n_row + 31LL) / 32LL;
             //High because we also account for useless 0 padding moved
-            bytes = (long)max_nnz * 12LL + (n_slices +1LL)* 4LL;
+            bytes = (long)max_nnz * (long)(4+8); //cols + values
+			bytes += (long)(n_slices +1)* 4LL; //slice_ptr
             break;
     }
     //Vector x and Vector Res access
     bytes += (long long)(n_col + n_row) * 8LL;
 
-    double gflops = (2.0 * nnz) / (avg * 1e6);
-    double bandwidth = (double)bytes / (avg * 1e6);
+    double gflops_avg = (2.0 * nnz) / (avg * 1e6);
+	double gflops_min = (2.0 * nnz) / (mn * 1e6);
+	double gflops_max = (2.0 * nnz) / (mx * 1e6);
+    double bandwidth_avg = (double)bytes / (avg * 1e6);
+	double bandwidth_min = (double)bytes / (mn * 1e6);
+	double bandwidth_max = (double)bytes / (mx * 1e6);
     double avg_err = arithmetic_mean(errors, NITER);
     printf("[%s]  avg=%.6fms  stddev=%.6fms  GFLOP/s=%.2f  BW=%.2f GB/s  Avg_err=%.2e  BlockSize:%d\n",
-           label, avg, stddev, gflops, bandwidth, avg_err, block_size);
+           label, avg, stddev, gflops_avg, bandwidth_avg, avg_err, block_size);
 
-    fprintf(csv, "%s,%s,%.6f,%.6f,%.6f,%.6f,%.4f,%.4f,%.2e,%d\n",
-            matrix_name, label, avg, stddev, mn, mx, gflops, bandwidth,avg_err, block_size);
+    fprintf(csv, "%s,%s,%.6f,%.6f,%.6f,%.6f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2e,%d\n",
+            matrix_name, label, avg, stddev, mn, mx, gflops_avg, gflops_min, gflops_max, bandwidth_avg,bandwidth_min, bandwidth_max,avg_err, block_size);
 }
 // -------------------------------------------------

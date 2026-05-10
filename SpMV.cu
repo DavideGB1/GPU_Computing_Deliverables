@@ -203,16 +203,7 @@ int main(int argc, char *argv[]) {
     printf("Matrix: %s  rows=%d  cols=%d  nnz=%d\n\n", argv[1], csr->n_row, csr->n_col, csr->nnz);
 
     printf("CPU SpMV\n");
-    for (int i = -WARMUP; i < NITER; i++) {
-        TIMER_START(0);
-        my_SpMV(csr, vector, cpu_res);
-        TIMER_STOP(0);
-
-        double iter_time = TIMER_ELAPSED(0) / 1.e3;
-        if (i >= 0) timers[i] = iter_time;
-
-        printf("Iteration %d tooks %lf ms\n", i, iter_time);
-    }
+    my_SpMV(csr, vector, cpu_res);
     printf("\n");
 
     cudaEvent_t start, stop;
@@ -257,8 +248,8 @@ int main(int argc, char *argv[]) {
         printf("Iteration %d tooks %lf ms\n", i, iter_time);
     }
     cudaFree(d_row); cudaFree(d_col); cudaFree(d_val);
-    free_COO(coo);
     print_stats("COO", timers, errors, coo->nnz, 0,coo->n_row, coo->n_col, argv[1], stats_file, FORMAT_COO, NITER,THREADS_PER_BLOCK);
+    free_COO(coo);
 
     // CSR-Scalar
     printf("CSR-Scalar SpMV\n");
@@ -344,8 +335,6 @@ int main(int argc, char *argv[]) {
         printf("Iteration %d tooks %lf ms\n", i, iter_time);
     }
     print_stats("CSR-Vector Shuffle", timers, errors, csr->nnz, 0, csr->n_row, csr->n_col, argv[1], stats_file, FORMAT_CSR, NITER,THREADS_PER_BLOCK);
-		//Ellpack converting
-
 	// cuSPARSE
     printf("cuSPARSE SpMV\n");
 
