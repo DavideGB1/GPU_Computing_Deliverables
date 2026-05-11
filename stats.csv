@@ -1,4 +1,4 @@
-matrix,kernel,avg_ms,stddev_ms,min_ms,max_ms,gflops_avg,gflops_min,gflops_max,bandwidth_avg,bandwidth_min,bandwidth_max,avg_err,block_size
+matrix,kernel,avg_ms,stddev_ms,min_ms,max_ms,gflops_avg,gflops_min,gflops_max,bandwidth_avg,bandwidth_max,bandwidth_min,avg_err,block_size
 matrices/coPapersCiteseer.mtx,COO,4.998676,0.907875,4.137984,6.023168,12.8328,15.5020,10.6500,104.0517,125.6942,86.3533,6.98e-16,256
 matrices/coPapersCiteseer.mtx,CSR-Scalar,1.139855,0.020135,1.113088,1.191936,56.2763,57.6297,53.8174,345.2748,353.5779,330.1883,0.00e+00,256
 matrices/coPapersCiteseer.mtx,CSR-Vector,0.634757,0.001200,0.631808,0.636928,101.0574,101.5291,100.7129,620.0219,622.9160,617.9086,5.67e-16,256
