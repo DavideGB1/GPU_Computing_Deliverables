@@ -40,7 +40,6 @@ def read_matrix(matrix_name):
     return [A_shape, A_nnz, avg_nnz, row_var, float(regularity)]
 
 
-
 def monte_carlo_analysis(matrix_list, target=100_000_000):
     print("\n--- Matrix Loading ---")
     valid_names = []
@@ -65,24 +64,27 @@ def monte_carlo_analysis(matrix_list, target=100_000_000):
 
     print(f"\n--- Search on {actual_test_cases:,} groups ---")
 
-    global_best_score =c -1.0
+    global_best_score = - 1.0
     global_best = None
 
     for cycle in tqdm(range(num_cycles), desc="Processing chunks", unit="chunk(5M)"):
         random_indices = np.argsort(np.random.rand(CHUNK_SIZE, n_valid), axis=1)[:, :10]
-
         groups_data = features_array[random_indices]
-
         means = np.mean(groups_data, axis=1)
         vars_ = np.var(groups_data, axis=1)
         stds = np.std(groups_data, axis=1)
-
         cvs = np.zeros_like(means)
         mask = means != 0
         cvs[mask] = stds[mask] / means[mask]
 
-        scores = np.sum(cvs, axis=1)
 
+        group_log_cvs = np.log(groups_data[:, :, 4] + 1e-6)
+
+        var_cvs = np.var(group_log_cvs, axis=1)
+        var_size = np.var(np.log(groups_data[:, :, 0] + 1), axis=1)
+        var_nnz = np.var(np.log(groups_data[:, :, 1] + 1), axis=1)
+
+        scores = (var_nnz +var_size +(10.0 * var_cvs))
         best_idx_chunk = int(np.argmax(scores))
         best_score_chunk = scores[best_idx_chunk]
 
@@ -105,17 +107,17 @@ def monte_carlo_analysis(matrix_list, target=100_000_000):
 
     return global_best, actual_test_cases
 
-def print_individual_stats(matrix_list):
 
+def print_individual_stats(matrix_list):
     print("\n--- Matrix Stats ---")
     table_data = []
-    
+
     headers = [
-        "Matrix Name", 
-        "Size (N)", 
-        "NNZ", 
-        "Avg NNZ/Row", 
-        "Row Var", 
+        "Matrix Name",
+        "Size (N)",
+        "NNZ",
+        "Avg NNZ/Row",
+        "Row Var",
         "Regularity (CV)"
     ]
 
@@ -124,51 +126,72 @@ def print_individual_stats(matrix_list):
         if feat:
             table_data.append([
                 nome,
-                feat[0],              # Size
-                feat[1],              # NNZ
-                f"{feat[2]:.2f}",     # Avg NNZ/Row
-                f"{feat[3]:.2f}",     # Row Var
-                f"{feat[4]:.4f}"      # Regularity
+                feat[0],  # Size
+                feat[1],  # NNZ
+                f"{feat[2]:.4f}",  # Avg NNZ/Row
+                f"{feat[3]:.2f}",  # Row Var
+                f"{feat[4]:.4f}"  # Regularity
             ])
         else:
             table_data.append([nome, "N/A", "N/A", "N/A", "N/A", "N/A"])
 
     print("\n" + tabulate(table_data, headers=headers, tablefmt="grid"))
 
+
 if __name__ == "__main__":
     input_list = [
-        "kmer_U1a", "af_5_k101","af_shell5","BenElechi1","ML_Laplace",
-        "Queen_4147", "Raj1", "shipsec5", "spal_004", "thermomech_dM"
+        "BenElechi1", "CoupCons3D", "CurlCurl_4", "Emilia_923", "F1",
+
+        "Fault_639", "FullChip", "GAP-road", "Geo_1438", "Hardesty3",
+
+        "Hook_1498", "Long_Coup_dt6", "ML_Laplace", "PFlow_742", "RM07R",
+
+        "Serena", "Si87H76", "Transport", "af_5_k101", "af_shell5",
+
+        "audikw_1", "bmwcra_1", "boneS10", "coPapersCiteseer", "crankseg_2",
+
+        "gsm_106857", "halfb", "inline_1", "ljournal-2008", "msdoor",
+
+        "nd24k", "nlpkkt80", "pkustk14", "rgg_n_2_21_s0", "spal_004",
+
+        "vas_stokes_2M", "Ge87H76", "Maragal_8", "Raj1",
+
+        "TSOPF_RS_b678_c2", "gearbox", "m_t1", "ship_003", "shipsec5",
+
+        "thermomech_dM", "x104", "Bump_2911", "Cube_Coup_dt6", "Flan_1565",
+
+        "HV15R", "ML_Geer", "Queen_4147", "hollywood-2009", "kmer_U1a"
     ]
-    print_individual_stats(input_list)
+    #print_individual_stats("hollywood-2009, Raj1, audikw_1, Queen_4147, kmer_U1a, spal_004, coPapersCiteseer, FullChip, Maragal_8, f1".replace(" ", "").split(","))
 
-    """try:
-        best, n_comb = monte_carlo_analysis(input_list, target=100_000_000)
-        print(f"Analyzed {n_comb} combinations")
-        print(f"Best Combination: {', '.join(best['group'])}")
-        print(f"Score: {best['score']:.4f}")
+    try:
+     best, n_comb = monte_carlo_analysis(input_list, target=100_000_000)
+     print(f"Analyzed {n_comb} combinations")
+     print(f"Best Combination: {', '.join(best['group'])}")
+     print(f"Score: {best['score']:.4f}")
 
-        metric_names = [
-            'Size',
-            ' NNZ',
-            'Avg NNZ for Row',
-            'Row Lenght Variance',
-            'Structural Regularity'
-        ]
+     metric_names = [
+         'Size',
+         ' NNZ',
+         'Avg NNZ for Row',
+         'Row Lenght Variance',
+         'Structural Regularity'
+     ]
 
-        table_data = []
-        for i, name in enumerate(metric_names):
-            table_data.append([
-                name,
-                f"{best['stats']['mean'][i]:.4f}",
-                f"{best['stats']['std'][i]:.4f}",
-                f"{best['stats']['cv'][i] * 100:.2f}%"
-            ])
+     table_data = []
+     for i, name in enumerate(metric_names):
+         table_data.append([
+             name,
+             f"{best['stats']['mean'][i]:.4f}",
+             f"{best['stats']['std'][i]:.4f}",
+             f"{best['stats']['cv'][i] * 100:.2f}%"
+         ])
 
-        headers = ["Metric", "Mean", "Std Dev", "CV (%)"]
-        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+     headers = ["Metric", "Mean", "Std Dev", "CV (%)"]
+     print(tabulate(table_data, headers=headers, tablefmt="grid"))
+     print_individual_stats(', '.join(best['group']).replace(" ", "").split(","))
 
     except Exception as e:
-        print(f"Error: {e}")"""
+        print(f"Error: {e}")
 
-#Best: kmer_U1a, af_shell5, shipsec5, BenElechi1, Raj1, Queen_4147, spal_004, af_5_k101, ML_Laplace, thermomech_dM
+# Best: hollywood-2009, Raj1, audikw_1, Queen_4147, kmer_U1a, spal_004, coPapersCiteseer, FullChip, Maragal_8, f1
