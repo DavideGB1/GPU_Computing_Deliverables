@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <sys/time.h>
-#include <unistd.h> // Per sleep()
+#include <unistd.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,7 +17,6 @@ extern "C" {
 #define TIMER_STOP(n)    gettimeofday(&temp_2_##n, (struct timezone*)0)
 #define TIMER_ELAPSED(n) ((temp_2_##n.tv_sec-temp_1_##n.tv_sec)*1.e6+(temp_2_##n.tv_usec-temp_1_##n.tv_usec))
 
-// Nota: Assicurati di includere mpi.h nel file .c/.cu o qui se usi questa macro
 #define TIMER_PRINT(n) \
     do { \
         int rk;\
@@ -39,7 +38,7 @@ void print_stats(const char *label, double *timers, double *errors,int nnz, int 
                      const char *matrix_name, FILE *csv, SpMVFormat format, int NITER, int block_size);
 
 #ifdef __cplusplus
-} // Chiusura corretta di extern "C"
+}
 #endif
 
-#endif // Chiusura corretta di LAB3_EX1_LIB
+#endif
