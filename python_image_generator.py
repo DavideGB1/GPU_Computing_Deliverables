@@ -1,36 +1,65 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-
-# 1. Caricamento dati
-# Assicurati che il file si chiami 'data.csv' nella stessa cartella
+import seaborn as sns
+import matplotlib.patheffects as path_effects
+outline = [path_effects.withStroke(linewidth=3, foreground="black")]
 df = pd.read_csv('stats.csv', skipinitialspace=True)
+plt.figure(figsize=(12, 6))
 
-# 2. Pulizia (rimuove i test falliti con errore >= 0.5)
-df = df[df['avg_err'] < 0.5]
+df['matrix'] = df['matrix'].str.replace("matrices/", "", regex=False).str.replace(".mtx", "", regex=False)
+df['kernel'] = df['kernel'].str.replace("SELLpack-32", "SELL-32", regex=False)
 
-# 3. Aggregazione per block_size (media dei risultati)
-summary = df.groupby('block_size')[['avg_ms', 'gflops', 'bandwidth_gbs']].mean().sort_index()
-summary.index = summary.index.astype(str) # Per etichette asse X chiare
+ordering = ['Queen_4147', 'kmer_U1a', 'spal_004', 'audikw_1', 'F1', 'coPapersCiteseer', 'hollywood-2009', 'Maragal_8', 'Raj1','FullChip']
+df['matrix'] = pd.Categorical(df['matrix'], categories=ordering, ordered=True)
 
-# 4. Creazione Grafico
-fig, ax1 = plt.subplots(figsize=(10, 6))
+ordering_kernel = ['COO', 'CSR-Scalar', 'CSR-Vector', 'CSR-Vector Shuffle', "SELL-32", "cuSPARSE"]
+df['kernel'] = pd.Categorical(df['kernel'], categories=ordering_kernel, ordered=True)
 
-# Primo asse (Y sinistra): GFLOPS e Tempo
-ax1.set_xlabel('Block Size')
-ax1.set_ylabel('GFLOPS / Tempo (ms)')
-ax1.plot(summary.index, summary['gflops'], marker='o', color='tab:blue', label='GFLOPS', linewidth=2)
-ax1.plot(summary.index, summary['avg_ms'], marker='x', color='tab:green', label='Tempo (ms)', linewidth=1)
-ax1.grid(True, linestyle='--', alpha=0.6)
+df = df.rename(columns={"matrix": "Matrix", "bandwidth_avg": "Bandwidth(GB/s)", "gflops_avg": "GFLOP/s"})
 
-# Secondo asse (Y destra): Bandwidth
-ax2 = ax1.twinx()
-ax2.set_ylabel('Bandwidth (GB/s)', color='tab:red')
-ax2.plot(summary.index, summary['bandwidth_gbs'], marker='s', color='tab:red', linestyle='--', label='Bandwidth')
-ax2.tick_params(axis='y', labelcolor='tab:red')
 
-# Titolo e Legenda
-plt.title('Andamento Performance vs Block Size')
-fig.legend(loc='upper right', bbox_to_anchor=(0.9, 0.85))
+fig, ax = plt.subplots(figsize=(16, 7))
+sns.barplot(x="Matrix", y="GFLOP/s",hue="kernel",edgecolor="black",capsize=.05,errorbar="sd", data=df, width=0.9)
+plt.gca().legend(loc='upper center', bbox_to_anchor=(0.5, 1.1),
+          ncol=6,fontsize="15")
 
+for container in ax.containers:
+    labels = [f'{v:.2f}'  for v in container.datavalues]
+    texts = ax.bar_label(container, labels=labels, fontsize=11, rotation=90,
+                 label_type='center', color='white',fontweight='bold')
+    for t in texts:
+        t.set_path_effects(outline)
+#plt.text(x=-0.49,y=1000,s="933(GB/s)",color='red',fontweight='bold',fontsize=15)
+#plt.axhline(y=933, color='red', linestyle='--')
+#plt.yscale("log")
+plt.xticks(rotation=10)
+ax.set_xlabel('Matrix', fontsize = 30)
+ax.set_ylabel('GFLOP/s', fontsize = 30)
+ax.tick_params(axis='both', which='major', labelsize=20)
+ax.tick_params(axis='both', which='minor', labelsize=25)
 plt.tight_layout()
+#plt.savefig("GFLOPS.svg")
+plt.show()
+
+fig, ax = plt.subplots(figsize=(16, 7))
+sns.barplot(x="Matrix", y="Bandwidth(GB/s)",hue="kernel",edgecolor="black",capsize=.05,errorbar="sd", data=df, width=0.9)
+plt.gca().legend(loc='upper center', bbox_to_anchor=(0.5, 1.1),
+          ncol=6,fontsize="15")
+
+for container in ax.containers:
+    labels = [f'{v:.2f}' if v > 2 else '1' for v in container.datavalues]
+    texts = ax.bar_label(container, labels=labels, fontsize=11, rotation=90,
+                 label_type='center', color='white',fontweight='bold')
+    for t in texts:
+        t.set_path_effects(outline)
+plt.text(x=-0.49,y=942,s="933(GB/s A30 Theoretical Peak)",color='red',fontweight='bold',fontsize=15)
+plt.axhline(y=933, color='red', linestyle='--')
+#plt.yscale("symlog")
+plt.xticks(rotation=10)
+ax.set_xlabel('Matrix', fontsize = 30)
+ax.set_ylabel('Bandwidth(GB/s)', fontsize = 30)
+ax.tick_params(axis='both', which='major', labelsize=20)
+ax.tick_params(axis='both', which='minor', labelsize=25)
+plt.tight_layout()
+#plt.savefig("Bandwidth.svg")
 plt.show()
