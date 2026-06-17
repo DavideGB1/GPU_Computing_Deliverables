@@ -2,6 +2,8 @@
 
 This project implements **Sparse Matrix-Vector Multiplication (SpMV)** on GPU using CUDA. It reads a sparse matrix from a .mtx file, performs the multiplication against a random vector using various kernels, and outputs the results to the stats.csv file.
 
+Owner: Davide Colosimo
+
 ---
 
 ## Requirements
