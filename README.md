@@ -15,42 +15,27 @@ Owner: Davide Colosimo
 
 ---
 
-## Compilation
+## Compilation and Usage
 
-To compile the project using CMake, run the following commands from the project root:
+To compile and use the project using CMake.
+You need to run the following command from the project root:
 
 ```bash
-# Clean previous builds and configure the project
-rm -rf build
-cmake -B build
-
-# Build the executable
-cmake --build build
+make <path/matrix.mtx>
 ```
 The compiled executable SpMV will be generated inside the build directory.
 
 ---
 
-## Usage
-
-Once compiled, run the executable by passing the path to your sparse matrix file as an argument:
-
-```bash
-./build/SpMV <matrix_file>
-```
 ### Example
 
 ```bash
-./build/SpMV matrices/thermomech_dM.mtx
+make matrices/thermomech_dM.mtx
 ```
 ## Running on a SLURM Cluster
  
 If you have access to an HPC cluster managed by **SLURM**, you can submit the job using the provided batch script.
-To test different matrices on the cluster, open your sbatch script and modify the argument passed to the executable in the last line:
-```bash
-./build/SpMV matrices/your_matrix_here.mtx
-```
 Then, submit the job to the queue:
 ```bash
-sbatch your_script_name.sh
+sbatch run.sh <path/matrix.mtx>
 ```
