@@ -10,11 +10,12 @@
 #SBATCH --output=logs/test-%j.out
 #SBATCH --error=logs/test-%j.err
 
-module load CUDA/12.5.0
-module load GCC/13.3.0
+cd "$SLURM_SUBMIT_DIR"
+mkdir -p logs
 
-rm -rf build
-cmake -B build
-cmake --build build
+if [ -z "$1" ]; then
+    echo "Use: sbatch run.sh <path/matrix.mtx>"
+    exit 1
+fi
 
-./build/SpMV matrices/thermomech_dM.mtx
+make "$1"
