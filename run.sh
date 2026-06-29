@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:a30.24:1
 #SBATCH --cpus-per-task=4
 #SBATCH --time=00:05:00
-#SBATCH --job-name=SpMV-thermomech_dM
+#SBATCH --job-name=SpMV
 #SBATCH --output=logs/test-%j.out
 #SBATCH --error=logs/test-%j.err
 
