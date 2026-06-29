@@ -23,7 +23,7 @@ You need to run the following command from the project root:
 ```bash
 make <path/matrix.mtx>
 ```
-The compiled executable SpMV will be generated inside the build directory.
+The compiled SpMV executable will be generated in the build directory, and the entire process will be executed with the matrix file that you have provided.
 
 ---
 
